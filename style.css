@@ -480,6 +480,35 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
 .rv-hand { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
 .facts { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; font-size: 15px; }
 
+/* ---------- ordem das jogadas ---------- */
+.turn-order { margin: 10px 0 2px; padding: 8px 8px 6px; background: rgba(0,0,0,.25); border: 1px solid #3b2e1b; border-radius: 4px; }
+.to-label { display: flex; justify-content: space-between; font-family: var(--deco); font-size: 10px; letter-spacing: .14em; color: var(--gold); text-transform: uppercase; margin-bottom: 6px; }
+.to-list { display: flex; align-items: flex-start; gap: 2px; overflow-x: auto; }
+.to-item { display: flex; flex-direction: column; align-items: center; min-width: 44px; max-width: 58px; text-align: center; opacity: .75; transition: opacity .3s; }
+.to-item .portrait { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--c); border-bottom-width: 2px; }
+.to-item small { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+.to-item b { font-size: 11px; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.to-item.now { opacity: 1; }
+.to-item.now .portrait { width: 38px; height: 38px; box-shadow: 0 0 0 2px var(--gold2), 0 0 12px var(--c); }
+.to-item.now small { color: var(--gold2); font-weight: 700; }
+.to-item.next { opacity: .95; }
+.to-item.next small { color: var(--cream); }
+.to-item.off { filter: grayscale(1); opacity: .4; }
+.to-item.me b { color: var(--gold2); }
+.to-arrow { color: var(--gold); font-style: normal; align-self: center; margin-top: -14px; opacity: .6; }
+.turn-order.fresh .to-item.now { animation: tonow .5s cubic-bezier(.3,1.5,.5,1); }
+@keyframes tonow { from { transform: translateX(30px) scale(.7); opacity: 0; } }
+
+/* ---------- detetives na ordem das jogadas ---------- */
+.pl-title { display: flex; justify-content: space-between; }
+.pl-title span:last-child { color: var(--muted); }
+.pl-pos { width: 62px; flex-shrink: 0; font: 700 10px var(--serif); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.pl.cur .pl-pos { color: #1b130a; background: var(--gold2); border-radius: 10px; padding: 2px 0; }
+.pl.next .pl-pos { color: var(--cream); border: 1px solid var(--gold); border-radius: 10px; padding: 1px 0; }
+.pl.cur .portrait { box-shadow: 0 0 0 2px var(--gold2); }
+.pl.fresh { animation: plnow .5s cubic-bezier(.3,1.5,.5,1); }
+@keyframes plnow { from { transform: translateY(14px); opacity: .3; } }
+
 /* ---------- escolha de movimento ---------- */
 .board.choosing .tile, .board.choosing .tunnel, .board.choosing .start { filter: brightness(.5) saturate(.6); }
 .board.choosing .room:not(.reach) { filter: brightness(.45) saturate(.5); }

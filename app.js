@@ -1049,8 +1049,11 @@ const UI = {
 
     // jogadores
     const specs = pub.spectators || [];
-    $('#players').innerHTML = '<h3>Detetives</h3>' + pub.players.map((p, i) => `
-      <div class="pl ${i === pub.turn ? 'cur' : ''} ${p.out ? 'out' : ''}" data-pl="${p.id}">${portrait(S[p.suspect])}
+    const n = pub.players.length, playing = pub.phase === 'play';
+    const ordered = playing ? Array.from({ length: n }, (_, k) => pub.players[(pub.turn + k) % n]) : pub.players;
+    const orderKey = pub.turn + ':' + (pub.turnCount || 0), fresh = this._orderKey !== orderKey; this._orderKey = orderKey;
+    $('#players').innerHTML = `<h3 class="pl-title"><span>${playing ? 'Ordem das jogadas' : 'Detetives'}</span>${playing ? `<span>rodada ${pub.round || 1}</span>` : ''}</h3>` + ordered.map((p, i) => `
+      <div class="pl ${playing && i === 0 ? 'cur' : ''} ${playing && i === 1 ? 'next' : ''} ${fresh && i === 0 ? 'fresh' : ''} ${p.out ? 'out' : ''}" data-pl="${p.id}">${playing ? `<span class="pl-pos">${i === 0 ? 'agora' : i === 1 ? 'próximo' : `${i + 1}º`}</span>` : ''}${portrait(S[p.suspect])}
         <div><b>${esc(p.name)}${p.id === ME ? ' (você)' : ''}${(pub.scores || {})[p.id] ? ` <span class="trophy" title="vitórias na sala">🏆${pub.scores[p.id]}</span>` : ''}</b><small style="color:${S[p.suspect].color}">${S[p.suspect].short}</small></div>
         <span class="pl-meta"><i class="dot ${pub.online[p.id] ? 'on' : ''}" title="${pub.online[p.id] ? 'conectado' : 'desconectado'}"></i>${pub.online[p.id] ? '' : '<em class="off">offline</em> '}🂠 ${pub.handCounts[p.id]}${p.out ? ' · fora' : ''}</span></div>`).join('') +
       (specs.length ? `<p class="specs">👁 Assistindo: ${specs.map(v => esc(v.name) + (v.id === ME ? ' (você)' : '')).join(', ')}</p>` : '') +
@@ -1191,6 +1194,17 @@ const UI = {
     this._diceHide = setTimeout(() => { show.classList.add('out'); this._diceHide = setTimeout(() => show.classList.add('hidden'), 400); }, 1600);
   },
 
+  // ordem das jogadas a partir de quem está jogando agora
+  turnOrder() {
+    const pub = App.pub; if (pub.phase !== 'play') return '';
+    const n = pub.players.length, list = [];
+    for (let k = 0; k < n; k++) { const p = pub.players[(pub.turn + k) % n]; if (!p.out) list.push(p); }
+    if (list.length < 2) return '';
+    const key = pub.turn + ':' + (pub.turnCount || 0), fresh = this._orderKey !== key; this._orderKey = key;
+    return `<div class="turn-order ${fresh ? 'fresh' : ''}"><div class="to-label"><span>Ordem das jogadas</span><span>rodada ${pub.round || 1}</span></div><div class="to-list">${list.map((p, i) => `
+      <div class="to-item ${i === 0 ? 'now' : i === 1 ? 'next' : ''} ${pub.online[p.id] ? '' : 'off'} ${p.id === ME ? 'me' : ''}" style="--c:${S[p.suspect].color}" title="${esc(p.name)} · ${S[p.suspect].short}${pub.online[p.id] ? '' : ' (offline)'}">
+        ${portrait(S[p.suspect])}<small>${i === 0 ? 'agora' : i === 1 ? 'próximo' : `${i + 1}º`}</small><b>${p.id === ME ? 'você' : esc(p.name)}</b></div>`).join('<i class="to-arrow">›</i>')}</div></div>`;
+  },
   revealHTML() {
     const pub = App.pub, R = pub.reveal; if (!R) return '';
     const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
