@@ -327,7 +327,7 @@ class Host {
       st.anim = { id: st.seq++, sid, path: ['room:' + dest] };
       this.log(`${P.name} desceu pelo duto de serviço e saiu ${ROOM[dest].in}.`, 'move');
     } else if (t === 'suggest') {
-      if (!pos.room || ts.suggested || !(ts.entered || (ts.summoned && !ts.rolled))) return;
+      if (!pos.room || ts.suggested || !(ts.entered || !ts.moved)) return;
       if (!S[m.s] || !W[m.w]) return;
       const r = pos.room;
       ts.suggested = ts.rolled = ts.moved = true; ts.reach = [];
@@ -738,17 +738,18 @@ const UI = {
     // dica de movimento
     let hint = '';
     if (pub.phase === 'play' && mine && !pub.pending) {
-      const canSug0 = myPos.room && !ts.suggested && (ts.entered || (ts.summoned && !ts.rolled));
+      const canSug0 = myPos.room && !ts.suggested && (ts.entered || !ts.moved);
       if (choosing) {
         const rooms = ts.reach.filter(k => k.startsWith('room:')).length, cells = ts.reach.length - rooms;
         hint = ts.reach.length
           ? `🎲 <b>${ts.dice[0] + ts.dice[1]}</b>: clique numa <span class="hint-cell"></span> <b>casa dourada</b> (número = passos)` +
             (rooms ? ` ou numa sala <span class="hint-room">▶ ENTRAR</span>` : '') + '.' +
             (viaTunnels.size ? ` <span class="hint-t">Escotilha ${[...viaTunnels].join(' e ')} no alcance: leva à placa da mesma cor do outro lado (1 passo).</span>` : '') +
-            (TOUCH ? ' <i>1º toque mostra o caminho, 2º confirma.</i>' : '')
-          : '';
+            (TOUCH ? ' <i>1º toque mostra o caminho, 2º confirma.</i>' : '') +
+            (canSug0 ? ` Ou fique ${ROOM[myPos.room].in} e <b>palpite aqui</b> no painel.` : '')
+          : (canSug0 ? `Sem casas livres para andar. Você pode <b>palpitar aqui</b> ${ROOM[myPos.room].in}.` : '');
       } else if (!ts.rolled && !ts.moved) {
-        hint = `É a sua vez: <b>role os dados</b> no painel${myPos.room && PASSAGES[myPos.room] ? ' ou use o <b>duto ⇲</b> desta sala' : ''}${ts.summoned && myPos.room ? ', ou dê um palpite aqui mesmo' : ''}.`;
+        hint = `É a sua vez: <b>role os dados</b> no painel${myPos.room && PASSAGES[myPos.room] ? ' ou use o <b>duto ⇲</b> desta sala' : ''}${myPos.room ? `, ou <b>palpite aqui mesmo</b> ${ROOM[myPos.room].in} sem sair` : ''}.`;
       } else if (canSug0) hint = `Você está ${ROOM[myPos.room].in}. Faça seu <b>palpite</b> no painel.`;
     }
     const mh = $('#move-hint'); mh.innerHTML = hint; mh.classList.toggle('hidden', !hint);
@@ -780,15 +781,15 @@ const UI = {
       const asking = pub.players.find(p => p.id === pub.pending.askingId);
       status = asking ? (asking.id === ME ? '<b>Você precisa mostrar uma carta.</b>' : `Aguardando <b>${esc(asking.name)}</b> escolher uma carta…`) : 'Conferindo as cartas…';
     } else if (mine) {
-      const canSug = myPos.room && !ts.suggested && (ts.entered || (ts.summoned && !ts.rolled));
+      const canSug = myPos.room && !ts.suggested && (ts.entered || !ts.moved), stay = canSug && !ts.entered;
       if (!ts.rolled && !ts.moved) {
-        status = ts.summoned && myPos.room ? `Você foi trazido ${ROOM[myPos.room].in}. Pode dar um palpite aqui ou rolar os dados.` : 'Sua vez! Role os dados.';
+        status = myPos.room ? `${ts.summoned ? 'Você foi trazido' : 'Você está'} ${ROOM[myPos.room].in}. Pode palpitar aqui mesmo ou rolar os dados para andar.` : 'Sua vez! Role os dados.';
         acts += `<button class="btn gold" data-act="roll">🎲 Rolar dados</button>`;
         if (myPos.room && PASSAGES[myPos.room]) acts += `<button class="btn" data-act="passage">⇲ Duto → ${ROOM[PASSAGES[myPos.room]].name}</button>`;
-      } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.dice[0] + ts.dice[1]} passos) ou entre numa sala.`;
+      } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.dice[0] + ts.dice[1]} passos) ou entre numa sala${stay ? ', ou fique e palpite aqui' : ''}.`;
       else if (canSug) status = `Você está ${ROOM[myPos.room].in}. Dê seu palpite!`;
       else status = 'Pode encerrar a vez.';
-      if (canSug) acts += `<button class="btn gold" data-act="suggest">🔎 Dar palpite</button>`;
+      if (canSug) acts += stay ? `<button class="btn ${ts.rolled ? '' : 'gold'}" data-act="suggest">🔎 Palpitar aqui (sem sair)</button>` : `<button class="btn gold" data-act="suggest">🔎 Dar palpite</button>`;
       if (ts.rolled || ts.moved || ts.suggested) acts += `<button class="btn" data-act="end">Encerrar vez ➜</button>`;
     } else if (cur) status = `Aguardando <b>${esc(cur.name)}</b>…`;
 
@@ -1005,7 +1006,7 @@ const UI = {
       <li>Nos corredores há duas <b>escotilhas</b>: as placas <b style="color:#3fc8d4">I</b> (turquesa) e <b style="color:#d27ae6">II</b> (lilás). Pisou numa, pode sair na outra placa da mesma cor, do outro lado do navio, gastando só 1 passo. Passe o mouse ou toque numa placa para ver a ligação.</li>
       <li>Dentro de uma sala, dê um <b>palpite</b>: suspeito + arma + a sala onde você está. O suspeito e a arma são levados até lá.</li>
       <li>Seguindo a ordem da mesa, o primeiro jogador que tiver uma das três cartas mostra <b>uma</b>, em segredo, só para você.</li>
-      <li>Quem é levado para uma sala por um palpite pode, na sua vez, palpitar ali mesmo sem rolar os dados.</li>
+      <li>Se você começar a vez dentro de uma sala, pode <b>palpitar ali mesmo, sem sair</b>, antes ou depois de rolar os dados (palpitar encerra o movimento).</li>
       <li>Não existe acusação: <b>vence quem fizer o palpite exatamente igual ao envelope</b>. Se ninguém conseguir mostrar carta, pode ser a pista que faltava (ou alguém blefando com as próprias cartas).</li>
       <li>Use o <b>caderno</b> (tecla N) para riscar o que já descobriu.</li></ol>
       <p class="hint">Fotos de época em domínio público ou licença livre, do Wikimedia Commons. <a href="img/CREDITOS.md" target="_blank" style="color:var(--gold2)">Ver créditos</a>.</p>
