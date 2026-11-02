@@ -50,10 +50,12 @@ input:focus, textarea:focus { outline: none; border-color: var(--gold); }
 /* ---------- capa ---------- */
 .screen { min-height: 100vh; }
 #home, #lobby { display: grid; place-items: center; padding: 24px 16px; }
+#home, #lobby { background: linear-gradient(rgba(8,6,4,.55), rgba(8,6,4,.92)), url(img/ship.jpg) center 40% / cover fixed; }
+#home .poster, .lobby-box { backdrop-filter: blur(2px); }
 .poster {
   max-width: 640px; width: 100%; text-align: center; padding: 42px 38px 34px;
   background:
-    linear-gradient(rgba(18, 13, 9, .92), rgba(18, 13, 9, .96)),
+    linear-gradient(rgba(18, 13, 9, .86), rgba(18, 13, 9, .93)),
     repeating-linear-gradient(90deg, transparent 0 22px, rgba(201, 165, 76, .06) 22px 23px);
   border: 2px solid var(--gold); outline: 1px solid var(--gold); outline-offset: 6px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
@@ -76,7 +78,7 @@ input:focus, textarea:focus { outline: none; border-color: var(--gold); }
 .home-form label input { display: block; width: 100%; margin-top: 6px; }
 .home-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
 .home-actions .or { color: var(--muted); font-style: italic; }
-#in-code { width: 110px; text-transform: uppercase; letter-spacing: .3em; text-align: center; font-weight: 700; }
+#in-code { width: 140px; text-transform: uppercase; letter-spacing: .2em; text-align: center; font-weight: 700; }
 #resume-box { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; align-items: flex-start; }
 
 /* ---------- sala de espera ---------- */
@@ -134,13 +136,15 @@ input:focus, textarea:focus { outline: none; border-color: var(--gold); }
 .room-M { background: radial-gradient(ellipse, transparent, rgba(0, 0, 0, .6)), repeating-linear-gradient(45deg, #3a3a3a 0 6px, #2c2c2c 6px 12px); }
 .room-C { background: radial-gradient(ellipse, rgba(80, 200, 120, .15), rgba(0, 0, 0, .55)), #1d4a31; }
 .room-K { background: radial-gradient(ellipse, rgba(255, 200, 230, .1), rgba(0, 0, 0, .55)), repeating-linear-gradient(45deg, #44264b 0 8px, #3b2142 8px 16px); }
-.room-icon { position: absolute; inset: 0; display: grid; place-items: center; font-size: 5.5vmin; opacity: .22; filter: grayscale(.3); pointer-events: none; }
+.room-photo { position: absolute; inset: 0; background: var(--photo) center / cover; filter: sepia(.55) contrast(1.05) brightness(.8); pointer-events: none; }
+.room-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,7,4,.78) 0%, rgba(10,7,4,.25) 35%, rgba(10,7,4,.15) 60%, rgba(10,7,4,.65) 100%), radial-gradient(ellipse, transparent 40%, var(--tint) 140%); mix-blend-mode: normal; }
+.room-photo + .room-name { margin-top: 0; }
 .room-name {
   font-family: var(--deco); color: var(--gold2); font-size: clamp(9px, 1.45vmin, 17px); text-transform: uppercase;
   letter-spacing: .08em; text-align: center; padding: 0 6px; text-shadow: 0 2px 3px #000; position: relative; line-height: 1.05;
 }
 .room-weapons { display: flex; gap: 2px; margin-top: 3px; position: relative; flex-wrap: wrap; justify-content: center; }
-.wchip { font-size: clamp(11px, 2vmin, 22px); filter: drop-shadow(0 2px 2px #000); background: rgba(239, 228, 200, .14); border-radius: 50%; padding: 1px 3px; }
+.wchip { width: clamp(16px, 2.8vmin, 30px); aspect-ratio: 1; border-radius: 50%; background: center / cover; border: 2px solid var(--gold2); box-shadow: 0 2px 5px #000; filter: sepia(.3); }
 .passage {
   position: absolute; font-size: clamp(12px, 2vmin, 20px); color: var(--gold2); opacity: .7; line-height: 1;
   bottom: 3%; right: 4%;
@@ -245,6 +249,7 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
 .card-art { flex: 1; margin: 3px 2px; border-radius: 3px; background: radial-gradient(circle, #3a2a18, #120c07); display: grid; place-items: center; overflow: hidden; }
 .card-art .portrait { width: 100%; height: 100%; object-fit: cover; }
 .card-art .emoji { font-size: 34px; filter: drop-shadow(0 3px 3px #000); }
+.card-art img { width: 100%; height: 100%; object-fit: cover; filter: sepia(.45) contrast(1.05); }
 .card-w .card-art { background: radial-gradient(circle, #4a3a2a, #15100a); }
 .card-r .card-art { background: radial-gradient(circle, #23394d, #0b131b); }
 .card-name { font-weight: 700; font-size: 11.5px; text-align: center; line-height: 1.05; min-height: 2.1em; display: grid; place-items: center; }

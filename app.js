@@ -141,8 +141,8 @@ function portrait(s) {
 function cardData(id) {
   const [t, k] = id.split(':');
   if (t === 's') return { kind: 's', type: 'Suspeito', name: S[k].name, art: portrait(S[k]), color: S[k].color };
-  if (t === 'w') return { kind: 'w', type: 'Arma', name: W[k].name, art: `<span class="emoji">${W[k].icon}</span>` };
-  return { kind: 'r', type: 'Local', name: ROOM[k].name, art: `<span class="emoji">${ROOM[k].icon}</span>` };
+  if (t === 'w') return { kind: 'w', type: 'Arma', name: W[k].name, art: `<img src="img/w-${k}.jpg" alt="" loading="lazy">` };
+  return { kind: 'r', type: 'Local', name: ROOM[k].name, art: `<img src="img/room-${k}.jpg" alt="" loading="lazy">` };
 }
 function cardHTML(id, cls = '', attrs = '') {
   const d = cardData(id);
@@ -627,8 +627,8 @@ const UI = {
     }
     ROOMS.forEach(rm => {
       const [r0, c0, r1, c1] = rm.rect;
-      html += `<div class="room room-${rm.id}" data-room="${rm.id}" style="left:${pct(c0)};top:${pct(r0)};width:${pct(c1 - c0 + 1)};height:${pct(r1 - r0 + 1)};--tint:${rm.tint}">
-        <div class="room-icon">${rm.icon}</div><div class="room-name">${rm.name}</div><div class="room-weapons" id="rw-${rm.id}"></div>
+      html += `<div class="room room-${rm.id}" data-room="${rm.id}" style="left:${pct(c0)};top:${pct(r0)};width:${pct(c1 - c0 + 1)};height:${pct(r1 - r0 + 1)};--tint:${rm.tint};--photo:url(img/room-${rm.id}.jpg)">
+        <div class="room-photo"></div><div class="room-name">${rm.name}</div><div class="room-weapons" id="rw-${rm.id}"></div>
         ${PASSAGES[rm.id] ? `<div class="passage" title="Duto de serviço para ${ROOM[PASSAGES[rm.id]].name}">⇲<span>duto → ${ROOM[PASSAGES[rm.id]].name}</span></div>` : ''}</div>`;
       rm.doors.forEach(([r, c]) => {
         let st;
@@ -678,7 +678,7 @@ const UI = {
     const mySid = App.mySid(), myPos = mySid && pub.pos[mySid];
 
     // armas nas salas
-    ROOMS.forEach(rm => { $('#rw-' + rm.id).innerHTML = WEAPONS.filter(w => pub.wpos[w.id] === rm.id).map(w => `<span class="wchip" title="${w.name}">${w.icon}</span>`).join(''); });
+    ROOMS.forEach(rm => { $('#rw-' + rm.id).innerHTML = WEAPONS.filter(w => pub.wpos[w.id] === rm.id).map(w => `<span class="wchip" title="${w.name}" style="background-image:url(img/w-${w.id}.jpg)"></span>`).join(''); });
 
     // destaques de movimento
     $$('.room').forEach(el => el.classList.remove('reach'));
@@ -872,6 +872,7 @@ const UI = {
       <li>Quem é levado para uma sala por um palpite pode, na sua vez, palpitar ali mesmo sem rolar os dados.</li>
       <li>Quando tiver certeza, faça a <b>acusação</b> (em qualquer lugar, na sua vez). Acertou, venceu. Errou, está fora, mas continua mostrando cartas.</li>
       <li>Use o <b>caderno</b> (tecla N) para riscar o que já descobriu.</li></ol>
+      <p class="hint">Fotos de época em domínio público ou licença livre, do Wikimedia Commons. <a href="img/CREDITOS.md" target="_blank" style="color:var(--gold2)">Ver créditos</a>.</p>
       <button class="btn gold" data-close>Entendi</button>`, { kind: 'help' });
   },
 };
