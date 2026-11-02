@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Limelight&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Caveat:wght@600&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔎</text></svg>">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -50,6 +50,20 @@
 
 <!-- ===== JOGO ===== -->
 <section id="game" class="screen hidden">
+  <aside class="side-left">
+    <section class="panel log-panel">
+      <div class="tabs">
+        <button class="tab on" data-tab="sugs">🔎 Palpites <span id="sug-count"></span></button>
+        <button class="tab" data-tab="log" id="tab-btn-log">📜 Diário de bordo</button>
+      </div>
+      <div id="tab-sugs" class="tabpane">
+        <div class="sug-tools"><select id="sug-filter"></select><button class="btn sm" data-act="sugtable">Tabela completa</button></div>
+        <div id="sugs" class="sugs"></div>
+      </div>
+      <div id="tab-log" class="tabpane hidden"><div id="log" class="log"></div></div>
+      <form id="chat" class="chat"><input id="chat-in" maxlength="200" placeholder="Conversar com a mesa…" autocomplete="off"><button class="btn sm">↵</button></form>
+    </section>
+  </aside>
   <main class="board-wrap">
     <div id="board" class="board"></div>
     <div id="banner" class="banner hidden"></div>
@@ -70,18 +84,6 @@
     <section id="turn" class="panel turn"></section>
     <section class="panel"><h3>Suas cartas</h3><div id="hand" class="hand"></div></section>
     <section id="players" class="panel"></section>
-    <section class="panel log-panel">
-      <div class="tabs">
-        <button class="tab on" data-tab="sugs">🔎 Palpites <span id="sug-count"></span></button>
-        <button class="tab" data-tab="log" id="tab-btn-log">📜 Diário de bordo</button>
-      </div>
-      <div id="tab-sugs" class="tabpane">
-        <div class="sug-tools"><select id="sug-filter"></select><button class="btn sm" data-act="sugtable">Tabela completa</button></div>
-        <div id="sugs" class="sugs"></div>
-      </div>
-      <div id="tab-log" class="tabpane hidden"><div id="log" class="log"></div></div>
-      <form id="chat" class="chat"><input id="chat-in" maxlength="200" placeholder="Conversar com a mesa…" autocomplete="off"><button class="btn sm">↵</button></form>
-    </section>
   </aside>
   <div id="notes" class="notes"></div>
 </section>
@@ -90,6 +92,6 @@
 <div id="modal" class="modal hidden"><div id="modal-box" class="modal-box"></div></div>
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>
