@@ -644,15 +644,16 @@ const UI = {
     Object.entries(STARTS).forEach(([id, [r, c]]) => {
       html += `<div class="start" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)};--c:${S[id].color}" title="Partida: ${S[id].name}"></div>`;
     });
-    html += `<div class="compass">N<br>✦</div><div id="hl"></div><div id="pawns">${SUSPECTS.map(s => `<div class="pawn" id="pawn-${s.id}" style="--c:${s.color}" title="${esc(s.name)}"><span>${s.name.split(' ').pop()[0]}</span></div>`).join('')}</div>`;
+    html += `<div class="compass">N<br>✦</div><div id="hl"></div><div id="pawns">${SUSPECTS.map(s => `<div class="pawn" id="pawn-${s.id}" style="--c:${s.color};--img:url(img/s-${s.id}.jpg)" title="${esc(s.name)}"><b class="pawn-tag"></b></div>`).join('')}</div>`;
     $('#board').innerHTML = html;
     this.boardBuilt = true;
   },
   cellXY(r, c) { return { x: (c + 0.5) / N * 100, y: (r + 0.5) / N * 100 }; },
   roomSlot(rid, i) {
-    const [r0, c0, r1, c1] = ROOM[rid].rect, perRow = Math.max(1, c1 - c0 - 1);
-    const row = Math.floor(i / perRow), col = i % perRow;
-    return { x: (c0 + 1.1 + col) / N * 100, y: (r1 - 0.15 - row * 1.05) / N * 100 };
+    const [r0, c0, r1, c1] = ROOM[rid].rect, w = c1 - c0 + 1, gap = 1.45;
+    const perRow = Math.max(1, Math.floor((w - 0.8) / gap)), row = Math.floor(i / perRow), col = i % perRow;
+    const startX = c0 + (w - (Math.min(perRow, 6) - 1) * gap) / 2;
+    return { x: (startX + col * gap) / N * 100, y: (r1 + 0.2 - row * 1.5) / N * 100 };
   },
   computeTargets(pos) {
     const out = {}, byRoom = {};
@@ -759,6 +760,10 @@ const UI = {
     $$('.pawn').forEach(el => el.classList.remove('turn', 'me'));
     if (cur) $('#pawn-' + cur.suspect).classList.add('turn');
     if (mySid) $('#pawn-' + mySid).classList.add('me');
+    SUSPECTS.forEach(s => {
+      const owner = pub.players.find(p => p.suspect === s.id);
+      $('#pawn-' + s.id + ' .pawn-tag').textContent = s.id === mySid ? 'VOCÊ' : owner ? owner.name : s.short;
+    });
     SUSPECTS.forEach(s => { if (!this.animating.has(s.id)) this.setPawn(s.id, this.target[s.id]); });
 
     // painel da vez
