@@ -399,6 +399,7 @@ class Host {
     st.pos = {}; SUSPECTS.forEach(s => { st.pos[s.id] = { r: STARTS[s.id][0], c: STARTS[s.id][1] }; });
     const rooms = shuffle(ROOMS.map(r => r.id)); st.wpos = {}; WEAPONS.forEach((w, i) => { st.wpos[w.id] = rooms[i]; });
     Object.assign(st, { history: [], phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
+    st.log = []; // diário e chat começam limpos a cada partida
     this.log('O Aurora apita. A investigação começou!', 'win');
     this.beginTurn();
   }
@@ -598,6 +599,7 @@ const UI = {
       const sh = (App.priv && App.priv.shown) || [];
       this.seen = { gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
       if (prev && prev.phase === 'lobby') { Sound.horn(); }
+      this.seenChats = pub.log.filter(e => e.kind === 'chat').length; this.seen.logLen = 0;
       if (!store.get('aurora-intro-' + pub.gameId)) { store.set('aurora-intro-' + pub.gameId, 1); this.introModal(); }
     }
     this.renderGame();
