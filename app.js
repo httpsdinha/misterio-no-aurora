@@ -271,8 +271,8 @@ class Host {
   player(id) { return this.st.players.find(p => p.id === id); }
   cur() { return this.st.players[this.st.turn]; }
   isOnline(id) { return id === ME || !!(this.conns[id] && this.conns[id].open); }
-  log(text, kind = 'sys') {
-    const st = this.st; st.log.push({ id: st.seq++, kind, text });
+  log(text, kind = 'sys', extra) {
+    const st = this.st; st.log.push({ id: st.seq++, kind, text, ...(extra || {}) });
     if (st.log.length > 250) st.log.splice(0, st.log.length - 250);
   }
 
@@ -337,10 +337,11 @@ class Host {
       }
       st.wpos[m.w] = r;
       st.lastSug = { id: st.seq++, by: pid, s: m.s, w: m.w, r, result: null };
+      (st.history = st.history || []).push({ id: st.lastSug.id, n: st.history.length + 1, by: pid, s: m.s, w: m.w, r, passed: [], shownBy: null, none: false, win: false });
       this.log(`${P.name} suspeita: ${S[m.s].name}, com ${W[m.w].with}, ${ROOM[r].in}.`, 'sug');
       const sol = st.solution;
       if (sol.s === m.s && sol.w === m.w && sol.r === r) {
-        st.lastSug.result = { win: true }; st.phase = 'over'; st.winner = pid;
+        st.lastSug.result = { win: true }; st.phase = 'over'; st.winner = pid; this.hist().win = true;
         this.log(`O palpite de ${P.name} bate com o envelope! ${P.name} desvendou o crime!`, 'win');
       } else {
         const idx = st.players.findIndex(p => p.id === pid);
@@ -364,17 +365,19 @@ class Host {
         if (!this.isOnline(p.id)) this.autoRefute();
         return;
       }
-      this.log(`${p.name} não pode refutar.`, 'ref');
+      this.log(`${p.name} não pode refutar.`, 'ref'); this.hist().passed.push(p.id);
     }
-    st.lastSug.result = { none: true }; st.pending = null;
+    st.lastSug.result = { none: true }; st.pending = null; this.hist().none = true;
     this.log('Ninguém conseguiu refutar o palpite!', 'ref');
   }
+  hist() { const h = this.st.history || []; return h[h.length - 1] || { passed: [] }; }
   autoRefute() { const pd = this.st.pending; if (pd && pd.askingId) this.resolveRefute(pd.askingId, this.st.priv[pd.askingId].ask.cards[0]); }
   resolveRefute(pid, card) {
     const st = this.st, pd = st.pending, P = this.player(pid), B = this.player(pd.by);
     st.priv[pid].ask = null;
-    st.priv[pd.by].shown.push({ id: st.seq++, by: pid, card });
-    st.lastSug.result = { by: pid };
+    st.priv[pd.by].shown.push({ id: st.seq++, by: pid, card, sugId: st.lastSug.id });
+    (st.priv[pid].gave = st.priv[pid].gave || []).push({ sugId: st.lastSug.id, card, to: pd.by });
+    st.lastSug.result = { by: pid }; this.hist().shownBy = pid;
     this.log(`${P.name} mostrou uma carta em segredo para ${B.name}.`, 'ref');
     st.pending = null;
   }
@@ -395,7 +398,7 @@ class Host {
     deck.forEach((c, i) => st.priv[st.players[(first + i) % n].id].hand.push(c));
     st.pos = {}; SUSPECTS.forEach(s => { st.pos[s.id] = { r: STARTS[s.id][0], c: STARTS[s.id][1] }; });
     const rooms = shuffle(ROOMS.map(r => r.id)); st.wpos = {}; WEAPONS.forEach((w, i) => { st.wpos[w.id] = rooms[i]; });
-    Object.assign(st, { phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
+    Object.assign(st, { history: [], phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
     this.log('O Aurora apita. A investigação começou!', 'win');
     this.beginTurn();
   }
@@ -403,7 +406,7 @@ class Host {
     const st = this.st, P = this.cur();
     st.ts = { rolled: false, moved: false, entered: false, suggested: false, summoned: !!st.summoned[P.suspect], dice: (st.ts && st.ts.dice) || null, diceId: st.ts ? st.ts.diceId : 0, reach: [] };
     delete st.summoned[P.suspect]; st._prev = {};
-    this.log(`Vez de ${P.name} (${S[P.suspect].short}).`, 'turn');
+    this.log(`Vez de ${P.name} (${S[P.suspect].short})`, 'turn', { sid: P.suspect });
   }
   nextTurn() {
     const st = this.st, n = st.players.length; let i = st.turn;
@@ -414,7 +417,7 @@ class Host {
     const st = this.st;
     st.players = st.players.filter(p => this.isOnline(p.id));
     st.players.forEach(p => { p.out = false; });
-    for (const k of ['solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
+    for (const k of ['history', 'solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
     st.priv = {}; st.phase = 'lobby';
     this.log('Nova partida: escolham seus personagens.');
   }
@@ -555,6 +558,7 @@ function banner(html, ms = 4200) {
 
 /* ---------------- UI ---------------- */
 const UI = {
+  tab: 'sugs',
   boardBuilt: false, seen: null, animating: new Set(), target: {},
   show(id) {
     ['home', 'lobby', 'game'].forEach(s => $('#' + s).classList.toggle('hidden', s !== id));
@@ -813,11 +817,18 @@ const UI = {
 
     // diário
     const log = $('#log'), atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    const ICON = { roll: '🎲', move: '🚶', sug: '🔎', ref: '✋', win: '🏆', acc: '⚖️', sys: '·' };
     log.innerHTML = pub.log.map(e => e.kind === 'chat'
-      ? `<p class="chat-line"><b style="color:${e.color}">${esc(e.who)}:</b> ${esc(e.text)}</p>`
-      : `<p class="l-${e.kind}">${esc(e.text)}</p>`).join('');
+      ? `<div class="lg chat-line"><span class="ic">💬</span><div><b style="color:${e.color}">${esc(e.who)}</b> ${esc(e.text)}</div></div>`
+      : e.kind === 'turn'
+        ? `<div class="lg l-turn">${e.sid ? `<img src="img/s-${e.sid}.jpg" alt="">` : ''}<span>${esc(e.text)}</span></div>`
+        : `<div class="lg l-${e.kind}"><span class="ic">${ICON[e.kind] || '·'}</span><div>${esc(e.text)}</div></div>`).join('');
     if (atBottom || this.seen.logLen !== pub.log.length) log.scrollTop = log.scrollHeight;
+    const chats = pub.log.filter(e => e.kind === 'chat').length;
+    if (this.tab === 'log') this.seenChats = chats;
+    $('#tab-btn-log').classList.toggle('badge', chats > (this.seenChats ?? chats));
     this.seen.logLen = pub.log.length;
+    this.renderSugs();
 
     // modal de refutação
     if (priv && priv.ask && pub.phase === 'play') { if (Modal.kind !== 'ask') this.askModal(); }
@@ -863,6 +874,53 @@ const UI = {
     }
   },
 
+  chip(card, cls = '') {
+    const [t, k] = card.split(':'), img = t === 's' ? `s-${k}` : t === 'w' ? `w-${k}` : `room-${k}`;
+    return `<span class="chip chip-${t} ${cls}"><img src="img/${img}.jpg" alt="">${esc(cardData(card).name)}</span>`;
+  },
+  renderSugs() {
+    const pub = App.pub, H = pub.history || [], f = this.sugFilter || 'all';
+    const P = id => pub.players.find(p => p.id === id), nm = id => id === ME ? 'você' : esc((P(id) || {}).name || '?');
+    const sel = $('#sug-filter');
+    const opts = `<option value="all">Todos os palpites</option>` + pub.players.map(p => `<option value="${p.id}">Envolvendo ${p.id === ME ? 'você' : esc(p.name)}</option>`).join('');
+    if (sel.dataset.opts !== opts) { sel.innerHTML = opts; sel.dataset.opts = opts; }
+    sel.value = f;
+    $('#sug-count').textContent = H.length ? `(${H.length})` : '';
+    const shownToMe = {}, gave = {};
+    ((App.priv && App.priv.shown) || []).forEach(x => { if (x.sugId) shownToMe[x.sugId] = x; });
+    ((App.priv && App.priv.gave) || []).forEach(x => { gave[x.sugId] = x; });
+    const list = H.filter(h => f === 'all' || h.by === f || h.shownBy === f || h.passed.includes(f)).slice().reverse();
+    $('#sugs').innerHTML = list.length ? list.map(h => {
+      const by = P(h.by), res = [];
+      if (h.passed.length) res.push(`<span class="r-pass">✗ ${(t => t[0].toUpperCase() + t.slice(1))(h.passed.map(nm).join(', '))} não ${h.passed.length > 1 ? 'tinham' : 'tinha'} nenhuma</span>`);
+      if (h.shownBy) {
+        if (shownToMe[h.id]) res.push(`<span class="r-show">✋ ${nm(h.shownBy)} mostrou a você: ${this.chip(shownToMe[h.id].card, 'mini')}</span>`);
+        else if (gave[h.id]) res.push(`<span class="r-show">✋ Você mostrou a ${nm(h.by)}: ${this.chip(gave[h.id].card, 'mini')}</span>`);
+        else res.push(`<span class="r-show">✋ ${nm(h.shownBy)} mostrou uma carta a ${nm(h.by)}</span>`);
+      }
+      if (h.none) res.push(`<span class="r-none">⚠️ Ninguém tinha nenhuma das três</span>`);
+      if (h.win) res.push(`<span class="r-win">🏆 Acertou o envelope!</span>`);
+      if (!h.shownBy && !h.none && !h.win) res.push(`<span class="r-wait">⏳ conferindo…</span>`);
+      return `<div class="sug ${h.by === ME ? 'mine' : ''}" style="--c:${by ? S[by.suspect].color : '#888'}">
+        <div class="sug-head"><b>#${h.n}</b>${by ? `<img src="img/s-${by.suspect}.jpg" alt="">` : ''}<span>${h.by === ME ? 'Você' : nm(h.by)} perguntou</span></div>
+        <div class="sug-chips">${this.chip('s:' + h.s)}${this.chip('w:' + h.w)}${this.chip('r:' + h.r)}</div>
+        <div class="sug-res">${res.join('')}</div></div>`;
+    }).join('') : `<p class="hint">${H.length ? 'Nenhum palpite com esse filtro.' : 'Nenhum palpite ainda. Eles vão aparecer aqui, com quem não tinha e quem mostrou carta.'}</p>`;
+  },
+  sugTable() {
+    const pub = App.pub, H = pub.history || [];
+    const P = id => pub.players.find(p => p.id === id), nm = id => id === ME ? 'você' : esc((P(id) || {}).name || '?');
+    const shownToMe = {}, gave = {};
+    ((App.priv && App.priv.shown) || []).forEach(x => { if (x.sugId) shownToMe[x.sugId] = x; });
+    ((App.priv && App.priv.gave) || []).forEach(x => { gave[x.sugId] = x; });
+    Modal.open(`<h2>Todos os palpites</h2>
+      <div class="table-wrap"><table class="sug-table"><tr><th>#</th><th>Quem</th><th>Suspeito</th><th>Arma</th><th>Local</th><th>Não tinham</th><th>Mostrou</th></tr>
+      ${H.map(h => `<tr class="${h.by === ME ? 'mine' : ''}"><td>${h.n}</td><td>${nm(h.by)}</td><td>${S[h.s].name}</td><td>${W[h.w].name}</td><td>${ROOM[h.r].name}</td>
+        <td>${h.passed.map(nm).join(', ') || '—'}</td>
+        <td>${h.win ? '🏆 acertou' : h.none ? '⚠️ ninguém' : h.shownBy ? (shownToMe[h.id] ? `${nm(h.shownBy)} → <b>${esc(cardData(shownToMe[h.id].card).name)}</b>` : gave[h.id] ? `você → <b>${esc(cardData(gave[h.id].card).name)}</b>` : nm(h.shownBy)) : '…'}</td></tr>`).join('') || '<tr><td colspan="7">Nenhum palpite ainda.</td></tr>'}
+      </table></div><p class="hint">A carta em negrito só aparece para quem viu ou mostrou.</p>
+      <div class="actions center"><button class="btn gold" data-close>Fechar</button></div>`, { kind: 'table', cls: 'wide' });
+  },
   async rollDice(final) {
     Sound.dice();
     // dado grande no meio do tabuleiro, para todos
@@ -966,6 +1024,7 @@ document.addEventListener('click', e => {
     const a = act.dataset.act;
     if (a === 'suggest') return UI.picker(a);
     if (a === 'showover') return UI.overModal();
+    if (a === 'sugtable') return UI.sugTable();
     if (a === 'newgame') { Modal.close(); return App.send({ type: 'newgame' }); }
     if (a === 'end' && App.pub.ts && !App.pub.ts.suggested && App.pub.pos[App.mySid()].room && App.pub.ts.entered && !confirm('Encerrar a vez sem dar palpite?')) return;
     return App.send({ type: a });
@@ -1008,6 +1067,14 @@ $('#board').addEventListener('click', e => {
   if (t && !e.target.closest('[data-key]')) { peekTunnel(t.dataset.tunnel); toast(`Escotilha ${t.dataset.tunnel}: pisou numa, sai na outra placa da mesma cor (1 passo).`, 3500); clearTimeout(peekTunnel._t); peekTunnel._t = setTimeout(() => peekTunnel(null), 3500); }
 });
 
+document.addEventListener('click', e => {
+  const tb = e.target.closest('[data-tab]'); if (!tb) return;
+  UI.tab = tb.dataset.tab;
+  $$('[data-tab]').forEach(b => b.classList.toggle('on', b === tb));
+  $('#tab-sugs').classList.toggle('hidden', UI.tab !== 'sugs'); $('#tab-log').classList.toggle('hidden', UI.tab !== 'log');
+  if (UI.tab === 'log') { UI.seenChats = (App.pub.log || []).filter(x => x.kind === 'chat').length; $('#tab-btn-log').classList.remove('badge'); const l = $('#log'); l.scrollTop = l.scrollHeight; }
+});
+$('#sug-filter').addEventListener('change', e => { UI.sugFilter = e.target.value; UI.renderSugs(); });
 $('#notes').addEventListener('input', e => { if (e.target.id === 'notes-free') store.set(Notes.key() + '-free', e.target.value); });
 $('#btn-notes').onclick = () => Notes.toggle();
 $('#btn-help').onclick = () => UI.help();
