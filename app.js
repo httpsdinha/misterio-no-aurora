@@ -44,6 +44,10 @@ const ROOMS = [
   { id: 'K', name: 'Cabine de Luxo', in: 'na Cabine de Luxo', icon: '🛏️', tint: '#44264b', rect: [19, 17, 23, 23], doors: [[18, 20], [21, 16]] },
 ];
 const PASSAGES = { P: 'K', K: 'P', E: 'M', M: 'E' }; // dutos de serviço
+// escotilhas de corredor: atravessam o navio em 1 passo
+const TUNNELS = [{ id: 'I', a: [0, 8], b: [23, 15] }, { id: 'II', a: [6, 0], b: [17, 23] }];
+const tunnelMap = {};
+TUNNELS.forEach(t => { tunnelMap[t.a.join(',')] = t.b.join(','); tunnelMap[t.b.join(',')] = t.a.join(','); });
 const STARTS = { cap: [0, 7], con: [0, 16], doc: [7, 23], can: [23, 16], bar: [23, 7], mar: [16, 0] };
 
 const S = Object.fromEntries(SUSPECTS.map(x => [x.id, x]));
@@ -71,6 +75,7 @@ function neighbors(k, occ) {
     if (isHall(rr, cc) && !occ.has(rr + ',' + cc)) res.push(rr + ',' + cc);
   }
   for (const id of (doorMap[k] || [])) res.push('room:' + id);
+  if (tunnelMap[k] && !occ.has(tunnelMap[k])) res.push(tunnelMap[k]);
   return res;
 }
 
@@ -632,6 +637,10 @@ const UI = {
         html += `<div class="door" style="${st}"></div>`;
       });
     });
+    TUNNELS.forEach(t => [t.a, t.b].forEach(([r, c], i) => {
+      const [or, oc] = i ? t.a : t.b;
+      html += `<div class="tunnel" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)}" title="Escotilha ${t.id}: leva até a outra escotilha ${t.id} (linha ${or + 1}, coluna ${oc + 1}) gastando 1 passo"><span>${t.id}</span></div>`;
+    }));
     Object.entries(STARTS).forEach(([id, [r, c]]) => {
       html += `<div class="start" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)};--c:${S[id].color}" title="Partida: ${S[id].name}"></div>`;
     });
@@ -655,9 +664,16 @@ const UI = {
   async animatePath(anim) {
     const el = $('#pawn-' + anim.sid); if (!el) return;
     this.animating.add(anim.sid); el.classList.add('walking');
+    let last = null;
     for (const k of anim.path) {
       const xy = k.startsWith('room:') ? this.target[anim.sid] : this.cellXY(...k.split(',').map(Number));
-      this.setPawn(anim.sid, xy); Sound.step(); await sleep(anim.path.length > 1 ? 140 : 500);
+      if (last && !k.startsWith('room:') && Math.hypot(xy.x - last.x, xy.y - last.y) > 10) {
+        // atravessou uma escotilha: some e reaparece do outro lado
+        el.classList.add('hatch'); Sound.card(); await sleep(220);
+        el.style.transition = 'none'; this.setPawn(anim.sid, xy); void el.offsetWidth; el.style.transition = '';
+        el.classList.remove('hatch'); await sleep(220);
+      } else { this.setPawn(anim.sid, xy); Sound.step(); await sleep(anim.path.length > 1 ? 140 : 500); }
+      last = xy;
     }
     el.classList.remove('walking'); this.animating.delete(anim.sid);
     this.setPawn(anim.sid, this.target[anim.sid]);
@@ -860,6 +876,7 @@ const UI = {
     Modal.open(`<h2>Como jogar</h2><ol class="rules">
       <li>No início, um <b>suspeito</b>, uma <b>arma</b> e um <b>local</b> são escondidos no envelope. O resto das cartas é distribuído.</li>
       <li>Na sua vez, <b>role os dados</b> e ande até esse número de casas pelos corredores (pode andar menos). Entrar numa sala encerra o movimento. As salas dos cantos têm <b>dutos de serviço</b> para a sala oposta.</li>
+      <li>Nos corredores há duas <b>escotilhas</b> (placas de metal I e II). Entrar numa escotilha leva você até a outra com o mesmo número, do outro lado do navio, gastando só 1 passo.</li>
       <li>Dentro de uma sala, dê um <b>palpite</b>: suspeito + arma + a sala onde você está. O suspeito e a arma são levados até lá.</li>
       <li>Seguindo a ordem da mesa, o primeiro jogador que tiver uma das três cartas mostra <b>uma</b>, em segredo, só para você.</li>
       <li>Quem é levado para uma sala por um palpite pode, na sua vez, palpitar ali mesmo sem rolar os dados.</li>

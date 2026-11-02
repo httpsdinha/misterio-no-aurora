@@ -157,6 +157,13 @@ input:focus, textarea:focus { outline: none; border-color: var(--gold); }
 .passage span { display: none; }
 .passage.active { opacity: 1; cursor: pointer; background: rgba(233, 207, 127, .25); border-radius: 4px; padding: 3px 5px; animation: pulse 1.2s infinite; }
 .passage.active span { display: inline; font-family: var(--serif); font-size: 12px; margin-left: 4px; }
+.tunnel { position: absolute; z-index: 2; display: grid; place-items: center; pointer-events: auto; }
+.tunnel::before { content: ''; position: absolute; inset: 6%; border-radius: 3px;
+  background: repeating-linear-gradient(0deg, #2a3038 0 2px, #6d7781 2px 4px);
+  box-shadow: inset 0 0 0 1.5px #c9d1d8, 0 0 0 1.5px #111, 0 0 8px rgba(255,224,138,.55); }
+.tunnel::after { content: '⇵'; position: absolute; right: -2px; top: -6px; font-size: clamp(7px, 1vmin, 11px); color: #ffe08a; text-shadow: 0 1px 2px #000; }
+.tunnel span { position: relative; z-index: 1; font-family: Georgia, serif; font-weight: 700; color: #ffe08a; background: rgba(0,0,0,.55); padding: 0 2px; border-radius: 2px; font-size: clamp(8px, 1.3vmin, 14px); text-shadow: 0 1px 2px #000; }
+.pawn.hatch { transform: translate(-50%, -50%) scale(.1); opacity: 0; transition: transform .2s, opacity .2s !important; }
 .door { position: absolute; background: var(--gold2); box-shadow: 0 0 6px var(--gold2); border-radius: 2px; z-index: 2; }
 .room.reach { cursor: pointer; box-shadow: inset 0 0 0 4px #ffe08a, 0 0 22px #ffd86b, inset 0 0 40px rgba(255, 216, 107, .35); animation: roomglow 1.4s infinite; z-index: 1; }
 @keyframes roomglow { 50% { box-shadow: inset 0 0 0 4px #fff2c4, 0 0 32px #ffd86b, inset 0 0 50px rgba(255, 216, 107, .5); } }
