@@ -509,6 +509,9 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
 .pl.fresh { animation: plnow .5s cubic-bezier(.3,1.5,.5,1); }
 @keyframes plnow { from { transform: translateY(14px); opacity: .3; } }
 
+.fog-tag { font-size: 13px; color: #b9c8d4; background: rgba(160,180,200,.15); border-radius: 12px; padding: 1px 8px; }
+.telegram { font-family: 'Courier New', monospace; background: #efe4c8; color: #2a1d12; padding: 12px 14px; letter-spacing: .06em; border: 1px dashed #8f7440; font-size: 16px; }
+
 /* ---------- escolha de movimento ---------- */
 .board.choosing .tile, .board.choosing .tunnel, .board.choosing .start { filter: brightness(.5) saturate(.6); }
 .board.choosing .room:not(.reach) { filter: brightness(.45) saturate(.5); }
