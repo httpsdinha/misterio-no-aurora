@@ -360,6 +360,32 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
 .toast { position: fixed; top: 18px; left: 50%; transform: translate(-50%, -30px); opacity: 0; background: var(--gold); color: #1b130a; padding: 10px 18px; border-radius: 3px; font-weight: 700; z-index: 70; transition: .3s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ---------- dado grande para todos ---------- */
+.dice-show {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 25; pointer-events: none;
+  background: radial-gradient(ellipse, rgba(14,10,7,.95), rgba(14,10,7,.85)); border: 2px solid var(--gold); border-radius: 8px;
+  padding: 14px 28px 12px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.8);
+}
+.dice-show.in { animation: dsin .3s cubic-bezier(.3,1.5,.5,1); }
+.dice-show.out { opacity: 0; transition: opacity .4s; }
+@keyframes dsin { from { transform: translate(-50%, -50%) scale(.6); opacity: 0; } }
+.ds-name { font-family: var(--deco); color: var(--gold2); letter-spacing: .12em; font-size: 16px; }
+.ds-dice { display: flex; gap: 22px; justify-content: center; margin: 14px 0 8px; }
+.bigdie {
+  width: 76px; height: 76px; padding: 10px; border-radius: 14px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 3px;
+  background: linear-gradient(145deg, #fffaf0, #d9cdb0); box-shadow: 0 5px 0 #8f7f5f, 0 10px 18px rgba(0,0,0,.6);
+  animation: tumble .95s cubic-bezier(.25,.6,.4,1);
+}
+.bigdie.b2 { animation-name: tumble2; }
+.bigdie i { border-radius: 50%; }
+.bigdie i.on { background: radial-gradient(circle at 40% 35%, #555, #0d0d0d); }
+.bigdie.land { animation: land .35s ease-out; }
+@keyframes tumble { 0% { transform: translate(-90px, -60px) rotate(-200deg) scale(.6); } 35% { transform: translate(10px, 8px) rotate(140deg); } 60% { transform: translate(-6px, -14px) rotate(260deg); } 80% { transform: translate(4px, 0) rotate(330deg); } 100% { transform: none; } }
+@keyframes tumble2 { 0% { transform: translate(90px, -70px) rotate(220deg) scale(.6); } 35% { transform: translate(-12px, 6px) rotate(-120deg); } 60% { transform: translate(8px, -12px) rotate(-250deg); } 80% { transform: translate(-3px, 0) rotate(-340deg); } 100% { transform: none; } }
+@keyframes land { 40% { transform: scale(1.15); } }
+.ds-total { font-size: 20px; min-height: 1.3em; }
+.ds-total b { font-family: var(--deco); color: var(--gold2); font-size: 28px; }
+
 /* ---------- escolha de movimento ---------- */
 .board.choosing .tile, .board.choosing .tunnel, .board.choosing .start { filter: brightness(.5) saturate(.6); }
 .board.choosing .room:not(.reach) { filter: brightness(.45) saturate(.5); }
@@ -407,6 +433,8 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
   .banner-cards { gap: 6px; }
   .banner .card.sm { width: 60px; }
   .log { max-height: 200px; }
+  .dice-show { top: 46%; padding: 10px 18px; }
+  .bigdie { width: 58px; height: 58px; padding: 8px; }
   .board-wrap .move-hint { width: 100%; font-size: 15px; }
   .move-hint.hidden { display: none !important; }
   .room.reach::after { font-size: 2vw; padding: 2px 5px; }

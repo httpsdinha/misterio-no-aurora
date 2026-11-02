@@ -860,15 +860,26 @@ const UI = {
 
   async rollDice(final) {
     Sound.dice();
+    // dado grande no meio do tabuleiro, para todos
+    const cur = App.pub.players[App.pub.turn], mine = cur && cur.id === ME;
+    const show = $('#dice-show'); clearTimeout(this._diceHide);
+    show.innerHTML = `<div class="ds-name">${mine ? 'Você rola' : esc(cur ? cur.name : '') + ' rola'} os dados…</div>
+      <div class="ds-dice"><div class="bigdie" id="bd1">${dieHTML(1)}</div><div class="bigdie b2" id="bd2">${dieHTML(1)}</div></div><div class="ds-total">&nbsp;</div>`;
+    show.classList.remove('hidden', 'out'); void show.offsetWidth; show.classList.add('in');
     const t0 = performance.now();
-    while (performance.now() - t0 < 650) {
-      const a = $('#d1'), b = $('#d2'); if (!a || !b) break;
-      a.innerHTML = dieHTML(1 + Math.floor(Math.random() * 6)); b.innerHTML = dieHTML(1 + Math.floor(Math.random() * 6));
-      a.classList.add('rolling'); b.classList.add('rolling');
-      await sleep(70);
+    while (performance.now() - t0 < 950) {
+      const r1 = 1 + Math.floor(Math.random() * 6), r2 = 1 + Math.floor(Math.random() * 6);
+      const a = $('#d1'), b = $('#d2'), A = $('#bd1'), B = $('#bd2');
+      if (a && b) { a.innerHTML = dieHTML(r1); b.innerHTML = dieHTML(r2); a.classList.add('rolling'); b.classList.add('rolling'); }
+      if (A && B) { A.innerHTML = dieHTML(r1); B.innerHTML = dieHTML(r2); }
+      await sleep(75);
     }
-    const a = $('#d1'), b = $('#d2');
+    const a = $('#d1'), b = $('#d2'), A = $('#bd1'), B = $('#bd2');
     if (a && b) { a.innerHTML = dieHTML(final[0]); b.innerHTML = dieHTML(final[1]); a.classList.remove('rolling'); b.classList.remove('rolling'); }
+    if (A && B) { A.innerHTML = dieHTML(final[0]); B.innerHTML = dieHTML(final[1]); A.classList.add('land'); B.classList.add('land'); }
+    const tot = $('#dice-show .ds-total'); if (tot) tot.innerHTML = `${final[0]} + ${final[1]} = <b>${final[0] + final[1]}</b>`;
+    Sound.step();
+    this._diceHide = setTimeout(() => { show.classList.add('out'); this._diceHide = setTimeout(() => show.classList.add('hidden'), 400); }, 1600);
   },
 
   introModal() {
