@@ -194,6 +194,49 @@ const Sound = {
   win() { if (!this.ok()) return; const t = this.ctx.currentTime; [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, t + i * 0.15, 0.7, 'triangle', 0.16)); },
   lose() { if (!this.ok()) return; const t = this.ctx.currentTime; [392, 370, 349, 262].forEach((f, i) => this.tone(f, t + i * 0.32, 0.6, 'triangle', 0.14)); },
   ding() { if (!this.ok()) return; const t = this.ctx.currentTime; this.tone(1318, t, 0.6, 'sine', 0.12); this.tone(1760, t + 0.12, 0.8, 'sine', 0.1); },
+  pop() { if (!this.ok()) return; const t = this.ctx.currentTime; this.tone(880, t, 0.12, 'sine', 0.08); this.tone(1320, t + 0.05, 0.12, 'sine', 0.06); },
+  // ---- jazz dos anos 20: baixo caminhando, piano "charleston", prato e vassourinha, em swing
+  music: null,
+  setMusic(on) {
+    this.unlock(); if (!this.ctx) return;
+    if (on && !this.music) {
+      const c = this.ctx, bus = c.createGain(); bus.gain.value = 0.55; bus.connect(this.master);
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200; lp.connect(bus);
+      const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+      const BPM = 116, beat = 60 / BPM, swing = beat * 2 / 3;
+      // ii-V-I-VI em Fá, depois ii-V-I com turnaround
+      const BARS = [
+        { bass: [43, 45, 46, 47], chord: [58, 62, 65] },   // Gm7
+        { bass: [48, 52, 43, 40], chord: [58, 64, 67] },   // C7
+        { bass: [41, 45, 48, 49], chord: [57, 60, 64] },   // Fmaj7
+        { bass: [50, 42, 45, 44], chord: [54, 60, 64] },   // D7
+        { bass: [43, 46, 50, 49], chord: [58, 62, 65] },   // Gm7
+        { bass: [48, 46, 45, 43], chord: [58, 64, 69] },   // C9
+        { bass: [41, 48, 45, 40], chord: [57, 60, 64] },   // F6
+        { bass: [48, 47, 46, 42], chord: [58, 64, 67] },   // C7
+      ];
+      const melody = [[0, 72], [1.67, 74], [2, 77], [3, 76], [9, 79], [10, 77], [10.67, 74], [11, 72], [17, 69], [17.67, 72], [18, 74], [19, 72], [24, 77], [25, 76], [26, 74], [26.67, 72], [27, 69]];
+      const pluck = (f, t, dur, type, g, out) => { const o = c.createOscillator(), e = c.createGain(); o.type = type; o.frequency.value = f; e.gain.setValueAtTime(0.0001, t); e.gain.exponentialRampToValueAtTime(g, t + 0.012); e.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(e).connect(out); o.start(t); o.stop(t + dur + 0.05); };
+      const hiss = (t, dur, freq, type, g) => { const sN = c.createBufferSource(), f = c.createBiquadFilter(), e = c.createGain(); sN.buffer = this.noise(); f.type = type; f.frequency.value = freq; e.gain.setValueAtTime(g, t); e.gain.exponentialRampToValueAtTime(0.0001, t + dur); sN.connect(f).connect(e).connect(bus); sN.start(t, Math.random()); sN.stop(t + dur + 0.05); };
+      let next = c.currentTime + 0.1, step = 0; const total = BARS.length * 4;
+      const tick = () => {
+        while (next < c.currentTime + 0.25) {
+          const bar = BARS[Math.floor(step / 4) % BARS.length], b = step % 4, t = next;
+          pluck(mtof(bar.bass[b] - 12) * 2, t, beat * 0.95, 'triangle', 0.22, lp);                      // baixo
+          hiss(t, 0.18, 8000, 'highpass', 0.035);                                                       // prato
+          if (b === 1 || b === 3) { hiss(t + swing, 0.1, 8000, 'highpass', 0.025); hiss(t, 0.16, 2200, 'bandpass', 0.05); } // swing + vassourinha
+          if (b === 0) bar.chord.forEach(m => pluck(mtof(m), t, 0.35, 'triangle', 0.045, lp));        // piano no 1
+          if (b === 1) bar.chord.forEach(m => pluck(mtof(m), t + swing, 0.3, 'triangle', 0.04, lp));  // e no "e" do 2
+          melody.filter(([at]) => Math.floor(at) === step % total).forEach(([at, m]) => pluck(mtof(m), t + (at % 1) * beat, beat * 0.9, 'sine', 0.05, lp));
+          next += beat; step++;
+        }
+      };
+      tick(); this.music = { timer: setInterval(tick, 60), bus };
+    } else if (!on && this.music) {
+      clearInterval(this.music.timer); const g = this.music.bus.gain; g.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+      const bus = this.music.bus; setTimeout(() => bus.disconnect(), 800); this.music = null;
+    }
+  },
   setSea(on) {
     this.unlock(); if (!this.ctx) return;
     if (on && !this.sea) {
@@ -211,17 +254,23 @@ const Sound = {
 
 /* ---------------- ANFITRIÃO (estado oficial) ---------------- */
 const PEER_PREFIX = 'misterio-aurora-v1-';
+const HOST_LOST = '⚓ O anfitrião caiu ou fechou a página. A partida está pausada e continua de onde parou quando ele voltar (ele abre o site e clica em "Retomar a partida"). Tentando reconectar sozinho…';
+const REACTIONS = ['😱', '🤔', '😏', '😂', '👏', '🙄', '🤫', '🔥'];
 const PEER_OPTS = { debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] } };
 
 class Host {
   constructor(code, saved, myName) {
-    this.code = code; this.conns = {}; this.retries = 0;
+    this.code = code; this.conns = {}; this.retries = 0; this.lastSeen = {};
     this.st = saved || { code, phase: 'lobby', hostId: ME, players: [], log: [], seq: 1, priv: {} };
+    this.st.settings = this.st.settings || { refuteSecs: 60 };
+    this.st.spectators = this.st.spectators || [];
     if (!saved) { this.st.players.push({ id: ME, name: myName, suspect: null, out: false }); this.log(`${myName} abriu a sala.`); }
+    // anfitrião voltou com alguém devendo carta: retoma o relógio
+    if (saved && saved.pending && saved.pending.deadline) this.armRefuteTimer();
   }
   open(onReady, onFail) {
     this.peer = new Peer(PEER_PREFIX + this.code, PEER_OPTS);
-    this.peer.on('open', () => { this.retries = 0; if (onReady) { onReady(); onReady = null; } });
+    this.peer.on('open', () => { this.retries = 0; this.watchPresence(); if (onReady) { onReady(); onReady = null; } });
     this.peer.on('connection', conn => this.wire(conn));
     this.peer.on('disconnected', () => setTimeout(() => { if (!this.peer.destroyed) try { this.peer.reconnect(); } catch { } }, 2000));
     this.peer.on('error', err => {
@@ -235,20 +284,19 @@ class Host {
   wire(conn) {
     conn.on('data', m => {
       if (!m || typeof m !== 'object') return;
-      if (m.type === 'join') return this.join(conn, m);
+      if (conn.pid) this.lastSeen[conn.pid] = Date.now();
+      if (m.type === 'ping') return;
+      if (m.type === 'join') { this.lastSeen[String(m.token || '').slice(0, 40)] = Date.now(); return this.join(conn, m); }
       if (conn.pid) this.act(conn.pid, m);
     });
     conn.on('close', () => {
       if (!conn.pid || this.conns[conn.pid] !== conn) return;
       delete this.conns[conn.pid];
       const st = this.st, P = this.player(conn.pid);
-      if (!P) return;
+      if (!P) { const V = st.spectators.find(v => v.id === conn.pid); if (V) { st.spectators = st.spectators.filter(v => v !== V); this.broadcast(); } return; }
       if (st.phase === 'lobby') { st.players = st.players.filter(p => p !== P); this.log(`${P.name} saiu da sala.`); }
       else {
-        this.log(`${P.name} desconectou.`);
-        if (st.pending && st.pending.askingId === conn.pid) setTimeout(() => {
-          if (this.st.pending && this.st.pending.askingId === conn.pid && !this.isOnline(conn.pid)) { this.autoRefute(); this.broadcast(); }
-        }, 8000);
+        // o vigia de presença registra a saída e resolve pendências
       }
       this.broadcast();
     });
@@ -259,10 +307,16 @@ class Host {
     if (!token) return;
     let P = this.player(token);
     if (!P) {
-      if (st.phase !== 'lobby') return conn.send({ type: 'reject', reason: 'A partida já começou nessa sala.' });
+      if (st.phase !== 'lobby') {
+        let V = st.spectators.find(v => v.id === token);
+        if (!V) { V = { id: token, name }; st.spectators.push(V); this.log(`${name} está assistindo a partida. 👁`); }
+        const old = this.conns[token]; if (old && old !== conn) { old.pid = null; try { old.close(); } catch { } }
+        conn.pid = token; this.conns[token] = conn;
+        return this.broadcast();
+      }
       if (st.players.length >= 6) return conn.send({ type: 'reject', reason: 'A sala está cheia (6 detetives).' });
       P = { id: token, name, suspect: null, out: false }; st.players.push(P); this.log(`${name} subiu a bordo.`);
-    } else { if (st.phase === 'lobby') P.name = name; this.log(`${P.name} voltou à mesa.`); }
+    } else { if (st.phase === 'lobby') P.name = name; }
     const old = this.conns[token];
     if (old && old !== conn) { old.pid = null; try { old.close(); } catch { } }
     conn.pid = token; this.conns[token] = conn;
@@ -270,18 +324,61 @@ class Host {
   }
   player(id) { return this.st.players.find(p => p.id === id); }
   cur() { return this.st.players[this.st.turn]; }
-  isOnline(id) { return id === ME || !!(this.conns[id] && this.conns[id].open); }
+  isOnline(id) { return id === ME || !!(this.conns[id] && this.conns[id].open && Date.now() - (this.lastSeen[id] || 0) < 10000); }
+  // confere a presença de todo mundo a cada 2s (fechar a aba às vezes demora a derrubar a conexão)
+  watchPresence() {
+    clearInterval(this._presence);
+    this._presence = setInterval(() => {
+      for (const conn of Object.values(this.conns)) if (conn.open) try { conn.send({ type: 'ping' }); } catch { }
+      const st = this.st, now = {}; let changed = false;
+      st.players.forEach(p => { now[p.id] = this.isOnline(p.id); });
+      const was = this._wasOnline || now;
+      for (const id in now) if (was[id] !== now[id]) {
+        changed = true; const P = this.player(id);
+        if (P && st.phase !== 'lobby') this.log(now[id] ? `${P.name} voltou à mesa.` : `${P.name} desconectou.`);
+      }
+      this._wasOnline = now;
+      if (st.phase === 'play' && st.pending && st.pending.askingId && !now[st.pending.askingId]) {
+        const id = st.pending.askingId; this._offSince = this._offSince || {};
+        this._offSince[id] = this._offSince[id] || Date.now();
+        if (Date.now() - this._offSince[id] > 8000) { this.autoRefute(); this._offSince = {}; changed = true; }
+      } else this._offSince = {};
+      if (changed) this.broadcast();
+    }, 2000);
+  }
   log(text, kind = 'sys', extra) {
     const st = this.st; st.log.push({ id: st.seq++, kind, text, ...(extra || {}) });
     if (st.log.length > 250) st.log.splice(0, st.log.length - 250);
   }
 
   act(pid, m) {
-    const st = this.st, P = this.player(pid); if (!P) return;
-    const t = m.type;
+    const st = this.st, t = m.type;
+    const P = this.player(pid), V = !P && (st.spectators || []).find(v => v.id === pid);
+    if (!P && !V) return;
     if (t === 'chat') {
       const text = String(m.text || '').trim().slice(0, 200);
-      if (text) st.log.push({ id: st.seq++, kind: 'chat', who: P.name, color: P.suspect ? S[P.suspect].color : '#c9a54c', text });
+      const who = P || V;
+      if (text) st.log.push({ id: st.seq++, kind: 'chat', who: who.name + (V ? ' 👁' : ''), color: P && P.suspect ? S[P.suspect].color : '#9a8a6a', text });
+      return this.broadcast();
+    }
+    if (t === 'react') {
+      const now = Date.now(); this._lastReact = this._lastReact || {};
+      if (!REACTIONS.includes(m.e) || now - (this._lastReact[pid] || 0) < 1200) return;
+      this._lastReact[pid] = now;
+      st.react = { id: st.seq++, by: pid, e: m.e };
+      return this.broadcast();
+    }
+    if (!P) return; // espectador só conversa e reage
+    if (t === 'settings' && pid === st.hostId && st.phase === 'lobby') {
+      const secs = Number(m.refuteSecs); if ([0, 30, 60, 90, 120].includes(secs)) st.settings.refuteSecs = secs;
+      return this.broadcast();
+    }
+    if (t === 'skip' && pid === st.hostId && st.phase === 'play') {
+      const C = this.cur();
+      if (C && C.id !== ME && !this.isOnline(C.id)) {
+        if (st.pending) { if (st.pending.askingId) this.autoRefute(); }
+        this.log(`O anfitrião pulou a vez de ${C.name} (desconectado).`); this.nextTurn();
+      }
       return this.broadcast();
     }
     if (st.phase === 'lobby') {
@@ -361,6 +458,8 @@ class Host {
       const has = st.priv[p.id].hand.filter(c => pd.cards.includes(c));
       if (has.length) {
         pd.askingId = p.id; st.priv[p.id].ask = { cards: has, by: pd.by, all: pd.cards };
+        const secs = (st.settings && st.settings.refuteSecs) || 0;
+        pd.deadline = secs ? Date.now() + secs * 1000 : null; this.armRefuteTimer();
         this.log(`${p.name} tem algo a mostrar…`, 'ref');
         if (!this.isOnline(p.id)) this.autoRefute();
         return;
@@ -369,17 +468,44 @@ class Host {
     }
     st.lastSug.result = { none: true }; st.pending = null; this.hist().none = true;
     this.log('Ninguém conseguiu refutar o palpite!', 'ref');
+    this.scheduleAutoEnd();
   }
   hist() { const h = this.st.history || []; return h[h.length - 1] || { passed: [] }; }
-  autoRefute() { const pd = this.st.pending; if (pd && pd.askingId) this.resolveRefute(pd.askingId, this.st.priv[pd.askingId].ask.cards[0]); }
+  autoRefute(timeout) {
+    const pd = this.st.pending; if (!pd || !pd.askingId) return;
+    const ask = this.st.priv[pd.askingId].ask, P = this.player(pd.askingId);
+    if (timeout) this.log(`⏰ O tempo de ${P.name} acabou: o jogo mostrou uma das cartas de ${P.name} por sorteio.`, 'ref');
+    this.resolveRefute(pd.askingId, pick(ask.cards));
+  }
+  armRefuteTimer() {
+    clearTimeout(this._refuteTimer);
+    const pd = this.st.pending; if (!pd || !pd.deadline) return;
+    const id = pd.askingId;
+    this._refuteTimer = setTimeout(() => {
+      const p2 = this.st.pending;
+      if (p2 && p2.askingId === id && p2.deadline) { this.autoRefute(true); this.broadcast(); }
+    }, Math.max(0, pd.deadline - Date.now()));
+  }
+  // depois que o palpite é respondido, a vez passa sozinha
+  scheduleAutoEnd() {
+    const st = this.st, sugId = st.lastSug && st.lastSug.id; if (!sugId) return;
+    st.ts.autoEnd = true;
+    clearTimeout(this._autoEnd);
+    this._autoEnd = setTimeout(() => {
+      const s2 = this.st;
+      if (s2.phase === 'play' && !s2.pending && s2.lastSug && s2.lastSug.id === sugId && s2.ts.suggested) { this.nextTurn(); this.broadcast(); }
+    }, 4500);
+  }
   resolveRefute(pid, card) {
     const st = this.st, pd = st.pending, P = this.player(pid), B = this.player(pd.by);
     st.priv[pid].ask = null;
     st.priv[pd.by].shown.push({ id: st.seq++, by: pid, card, sugId: st.lastSug.id });
     (st.priv[pid].gave = st.priv[pid].gave || []).push({ sugId: st.lastSug.id, card, to: pd.by });
     st.lastSug.result = { by: pid }; this.hist().shownBy = pid;
+    clearTimeout(this._refuteTimer);
     this.log(`${P.name} mostrou uma carta em segredo para ${B.name}.`, 'ref');
     st.pending = null;
+    this.scheduleAutoEnd();
   }
 
   startGame() {
@@ -418,7 +544,9 @@ class Host {
     const st = this.st;
     st.players = st.players.filter(p => this.isOnline(p.id));
     st.players.forEach(p => { p.out = false; });
-    for (const k of ['history', 'solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
+    (st.spectators || []).filter(v => this.isOnline(v.id)).forEach(v => { if (st.players.length < 6) st.players.push({ id: v.id, name: v.name, suspect: null, out: false }); });
+    st.spectators = [];
+    for (const k of ['react', 'history', 'solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
     st.priv = {}; st.phase = 'lobby';
     this.log('Nova partida: escolham seus personagens.');
   }
@@ -428,6 +556,8 @@ class Host {
     pub.log = st.log.slice(-90);
     pub.handCounts = {}; pub.online = {};
     st.players.forEach(p => { pub.handCounts[p.id] = (st.priv[p.id] && st.priv[p.id].hand.length) || 0; pub.online[p.id] = this.isOnline(p.id); });
+    (st.spectators || []).forEach(v => { pub.online[v.id] = this.isOnline(v.id); });
+    if (st.pending && st.pending.deadline) pub.pending = { ...st.pending, remainingMs: Math.max(0, st.pending.deadline - Date.now()) };
     if (st.phase === 'over') pub.solution = st.solution;
     return { pub, priv: (st.priv && st.priv[pid]) || null };
   }
@@ -456,15 +586,27 @@ class Client {
   connect() {
     const c = this.peer.connect(PEER_PREFIX + this.code, { reliable: true, serialization: 'json' });
     this.conn = c;
-    c.on('open', () => c.send({ type: 'join', token: ME, name: this.name }));
+    c.on('open', () => {
+      c.send({ type: 'join', token: ME, name: this.name });
+      this.lastHeard = Date.now();
+      clearInterval(this._ping); this._ping = setInterval(() => {
+        if (c.open) c.send({ type: 'ping' });
+        // anfitrião sumiu sem fechar a conexão
+        if (this.everJoined && Date.now() - this.lastHeard > 9000 && !this.hostLost) {
+          this.hostLost = true; App.setStatus(HOST_LOST); try { c.close(); } catch { } this.retry();
+        }
+      }, 3000);
+    });
     c.on('data', m => {
       if (!m) return;
+      this.lastHeard = Date.now();
+      if (m.type === 'ping') { if (this.hostLost) { this.hostLost = false; App.setStatus(null); } return; }
       if (m.type === 'state') {
         if (!this.everJoined) store.set('aurora-last', { code: this.code, token: ME, name: this.name, at: Date.now() });
-        this.everJoined = true; App.setStatus(null); App.onState(m);
+        this.everJoined = true; this.hostLost = false; App.setStatus(null); App.onState(m);
       } else if (m.type === 'reject') { App.fail(m.reason); this.close(); }
     });
-    c.on('close', () => { if (this.alive && this.conn === c) { App.setStatus('Conexão perdida com o anfitrião. Reconectando…'); this.retry(); } });
+    c.on('close', () => { if (this.alive && this.conn === c) { this.hostLost = true; App.setStatus(HOST_LOST); this.retry(); } });
   }
   retry() {
     if (!this.alive || this.retrying) return; this.retrying = true;
@@ -481,7 +623,11 @@ class Client {
 const App = {
   role: null, net: null, pub: null, priv: null,
   send(m) { Sound.unlock(); if (this.role === 'host') this.net.act(ME, m); else if (this.net) this.net.send(m); },
-  onState({ pub, priv }) { const prev = this.pub; this.pub = pub; this.priv = priv; UI.update(prev); },
+  onState({ pub, priv }) {
+    const prev = this.pub; this.pub = pub; this.priv = priv;
+    UI.deadline = pub.pending && pub.pending.remainingMs != null ? performance.now() + pub.pending.remainingMs : null;
+    UI.update(prev);
+  },
   fail(msg) { this.role = null; this.net = null; this.setStatus(null); UI.show('home'); $('#home-err').textContent = msg; },
   setStatus(msg) { const el = $('#conn-status'); if (!msg) el.classList.add('hidden'); else { el.textContent = msg; el.classList.remove('hidden'); } },
   me() { return this.pub && this.pub.players.find(p => p.id === ME); },
@@ -597,7 +743,7 @@ const UI = {
     const firstOfGame = !this.seen || this.seen.gameId !== pub.gameId;
     if (firstOfGame) {
       const sh = (App.priv && App.priv.shown) || [];
-      this.seen = { gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
+      this.seen = { react: pub.react && pub.react.id, gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
       if (prev && prev.phase === 'lobby') { Sound.horn(); }
       this.seenChats = pub.log.filter(e => e.kind === 'chat').length; this.seen.logLen = 0;
       if (!store.get('aurora-intro-' + pub.gameId)) { store.set('aurora-intro-' + pub.gameId, 1); this.introModal(); }
@@ -624,6 +770,12 @@ const UI = {
       }).join('')}</div>
       <h3>A bordo (${pub.players.length}/6)</h3>
       <ul class="aboard">${pub.players.map(p => `<li><i class="dot ${pub.online[p.id] ? 'on' : ''}"></i>${esc(p.name)}${p.id === pub.hostId ? ' <em>anfitrião</em>' : ''}${p.suspect ? ` · <span style="color:${S[p.suspect].color}">${S[p.suspect].short}</span>` : ''}</li>`).join('')}</ul>
+      <div class="settings"><h3>Regras da mesa</h3>
+        <label>Tempo para mostrar carta:
+          ${App.isHost()
+            ? `<select id="set-refute">${[[30, '30 segundos'], [60, '1 minuto'], [90, '1 min e meio'], [120, '2 minutos'], [0, 'Sem limite']].map(([v, t]) => `<option value="${v}" ${pub.settings && pub.settings.refuteSecs === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+            : `<b>${pub.settings && pub.settings.refuteSecs ? (pub.settings.refuteSecs >= 60 ? (pub.settings.refuteSecs / 60).toString().replace('.', ',') + ' min' : pub.settings.refuteSecs + 's') : 'sem limite'}</b>`}
+        </label><p class="hint">Se o tempo acabar, o jogo mostra uma das cartas da pessoa por sorteio. A vez passa sozinha depois que o palpite é respondido.</p></div>
       ${App.isHost()
         ? `<button class="btn gold big" data-start ${pub.players.length < 2 ? 'disabled' : ''}>Zarpar! Começar a partida</button><p class="hint">Mínimo 2 jogadores, o ideal é de 3 a 6. Quem não escolher personagem recebe um aleatório.</p>`
         : `<p class="hint">Aguardando o anfitrião começar…</p>`}
@@ -794,7 +946,7 @@ const UI = {
       acts = `<button class="btn" data-act="showover">Ver o envelope</button>` + (App.isHost() ? `<button class="btn gold" data-act="newgame">Nova partida</button>` : '');
     } else if (pub.pending) {
       const asking = pub.players.find(p => p.id === pub.pending.askingId);
-      status = asking ? (asking.id === ME ? '<b>Você precisa mostrar uma carta.</b>' : `Aguardando <b>${esc(asking.name)}</b> escolher uma carta…`) : 'Conferindo as cartas…';
+      status = asking ? (asking.id === ME ? '<b>Você precisa mostrar uma carta.</b>' : `Aguardando <b>${esc(asking.name)}</b> escolher uma carta…`) + (pub.pending.deadline ? ` <span class="countdown" data-countdown></span>` : '') : 'Conferindo as cartas…';
     } else if (mine) {
       const canSug = myPos.room && !ts.suggested && (ts.entered || !ts.moved), stay = canSug && !ts.entered;
       if (!ts.rolled && !ts.moved) {
@@ -803,10 +955,14 @@ const UI = {
         if (myPos.room && PASSAGES[myPos.room]) acts += `<button class="btn" data-act="passage">⇲ Duto → ${ROOM[PASSAGES[myPos.room]].name}</button>`;
       } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.dice[0] + ts.dice[1]} passos) ou entre numa sala${stay ? ', ou fique e palpite aqui' : ''}.`;
       else if (canSug) status = `Você está ${ROOM[myPos.room].in}. Dê seu palpite!`;
+      else if (ts.autoEnd) status = 'Palpite respondido. <b>A vez passa sozinha</b> em instantes…';
       else status = 'Pode encerrar a vez.';
       if (canSug) acts += stay ? `<button class="btn ${ts.rolled ? '' : 'gold'}" data-act="suggest">🔎 Palpitar aqui (sem sair)</button>` : `<button class="btn gold" data-act="suggest">🔎 Dar palpite</button>`;
       if (ts.rolled || ts.moved || ts.suggested) acts += `<button class="btn" data-act="end">Encerrar vez ➜</button>`;
-    } else if (cur) status = `Aguardando <b>${esc(cur.name)}</b>…`;
+    } else if (cur) {
+      status = !pub.online[cur.id] ? `<b>${esc(cur.name)}</b> desconectou. Aguardando voltar…` : ts.autoEnd ? `Palpite respondido. A vez de <b>${esc(cur.name)}</b> já vai passar…` : `Aguardando <b>${esc(cur.name)}</b>…`;
+      if (!pub.online[cur.id] && App.isHost()) acts += `<button class="btn" data-act="skip">Pular a vez de ${esc(cur.name)}</button>`;
+    }
 
     let sugBox = '';
     if (pub.lastSug && pub.phase === 'play') {
@@ -826,10 +982,14 @@ const UI = {
     $('#hand').innerHTML = priv ? priv.hand.map(c => cardHTML(c, 'hand-card')).join('') : '<p class="hint">Você está assistindo.</p>';
 
     // jogadores
+    const specs = pub.spectators || [];
     $('#players').innerHTML = '<h3>Detetives</h3>' + pub.players.map((p, i) => `
-      <div class="pl ${i === pub.turn ? 'cur' : ''} ${p.out ? 'out' : ''}">${portrait(S[p.suspect])}
+      <div class="pl ${i === pub.turn ? 'cur' : ''} ${p.out ? 'out' : ''}" data-pl="${p.id}">${portrait(S[p.suspect])}
         <div><b>${esc(p.name)}${p.id === ME ? ' (você)' : ''}</b><small style="color:${S[p.suspect].color}">${S[p.suspect].short}</small></div>
-        <span class="pl-meta"><i class="dot ${pub.online[p.id] ? 'on' : ''}" title="${pub.online[p.id] ? 'conectado' : 'desconectado'}"></i>🂠 ${pub.handCounts[p.id]}${p.out ? ' · fora' : ''}</span></div>`).join('');
+        <span class="pl-meta"><i class="dot ${pub.online[p.id] ? 'on' : ''}" title="${pub.online[p.id] ? 'conectado' : 'desconectado'}"></i>${pub.online[p.id] ? '' : '<em class="off">offline</em> '}🂠 ${pub.handCounts[p.id]}${p.out ? ' · fora' : ''}</span></div>`).join('') +
+      (specs.length ? `<p class="specs">👁 Assistindo: ${specs.map(v => esc(v.name) + (v.id === ME ? ' (você)' : '')).join(', ')}</p>` : '') +
+      `<div class="reacts" title="Reagir para a mesa">${REACTIONS.map(e => `<button class="react-btn" data-react="${e}">${e}</button>`).join('')}</div>`;
+    $('#g-code').parentElement.classList.toggle('spectating', !App.me());
 
     // diário
     const log = $('#log'), atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -883,6 +1043,7 @@ const UI = {
         <button class="btn gold" data-close>Bico calado</button>`, { kind: 'wrong', cls: 'center' });
     }
     if (pub.phase === 'over' && sn.over !== pub.gameId) { sn.over = pub.gameId; this.overModal(); }
+    if (pub.react && pub.react.id !== sn.react) { sn.react = pub.react.id; this.showReact(pub.react); }
     const cur = pub.players[pub.turn];
     if (cur && pub.phase === 'play') {
       const turnKey = pub.turn + ':' + (pub.log.filter(e => e.kind === 'turn').length);
@@ -961,8 +1122,25 @@ const UI = {
     this._diceHide = setTimeout(() => { show.classList.add('out'); this._diceHide = setTimeout(() => show.classList.add('hidden'), 400); }, 1600);
   },
 
+  showReact(r) {
+    Sound.pop();
+    const P = App.pub.players.find(p => p.id === r.by);
+    // emoji sobe da ficha da pessoa no tabuleiro
+    if (P && this.target[P.suspect]) {
+      const xy = this.target[P.suspect], el = document.createElement('div');
+      el.className = 'react-float'; el.textContent = r.e; el.style.left = xy.x + '%'; el.style.top = xy.y + '%';
+      $('#board').appendChild(el); setTimeout(() => el.remove(), 2600);
+    }
+    // e aparece ao lado do nome na lista
+    const row = $(`[data-pl="${r.by}"]`);
+    if (row) { const b = document.createElement('span'); b.className = 'react-bubble'; b.textContent = r.e; row.appendChild(b); setTimeout(() => b.remove(), 2600); }
+    else { const V = (App.pub.spectators || []).find(v => v.id === r.by); if (V) toast(`${V.name} 👁 reagiu ${r.e}`, 2000); }
+  },
   introModal() {
     const sid = App.mySid(), s = sid && S[sid];
+    if (!App.me()) return Modal.open(`<div class="poster-top">CONFIDENCIAL</div><h2>Você está assistindo</h2>
+      <p>A partida já tinha começado, então você entrou como espectador 👁. Dá para acompanhar o tabuleiro, os palpites, conversar e reagir. Na próxima partida você entra como jogador.</p>
+      <button class="btn gold" data-close>Assistir</button>`, { kind: 'intro', cls: 'center' });
     Modal.open(`<div class="poster-top">CONFIDENCIAL</div><h2>A bordo do Aurora</h2>
       <p>Augusto Faria foi encontrado morto durante o baile. Um envelope lacrado guarda a verdade: <b>quem</b>, <b>com o quê</b> e <b>onde</b>.</p>
       ${s ? `<div class="intro-me">${portrait(s)}<div><small>Você é</small><b>${esc(s.name)}</b><p>${esc(s.bio)}</p></div></div>` : ''}
@@ -977,7 +1155,8 @@ const UI = {
     Modal.open(`<h2>${esc(by ? by.name : '?')} fez um palpite</h2>
       <p>Você tem ${ask.cards.length > 1 ? 'algumas dessas cartas. Escolha <b>uma</b> para mostrar em segredo' : 'uma dessas cartas. Mostre-a em segredo'}:</p>
       <div class="row-cards">${ask.all.map(c => ask.cards.includes(c) ? cardHTML(c, 'pickable', `data-refute="${c}"`) : cardHTML(c, 'dim')).join('')}</div>
-      <p class="hint">Só ${esc(by ? by.name : '')} vai ver a carta escolhida.</p>`, { kind: 'ask', persistent: true, cls: 'center' });
+      <p class="hint">Só ${esc(by ? by.name : '')} vai ver a carta escolhida.</p>
+      ${UI.deadline ? '<p class="ask-timer">⏳ <span data-countdown></span> para escolher, depois o jogo sorteia</p>' : ''}`, { kind: 'ask', persistent: true, cls: 'center' });
   },
   overModal() {
     const pub = App.pub, sol = pub.solution, wn = pub.players.find(p => p.id === pub.winner);
@@ -1050,6 +1229,7 @@ document.addEventListener('click', e => {
   const ch = t.closest('[data-suspect]');
   if (ch && !ch.disabled) { const mine = App.mySid() === ch.dataset.suspect; Sound.card(); return App.send({ type: 'pick', suspect: mine ? null : ch.dataset.suspect }); }
   if (t.closest('[data-start]')) return App.send({ type: 'start' });
+  const rb = t.closest('[data-react]'); if (rb) return App.send({ type: 'react', e: rb.dataset.react });
   if (t.closest('[data-copy]')) { const v = $('#share-link').value; navigator.clipboard?.writeText(v).then(() => toast('Convite copiado! Mande para a galera.'), () => { $('#share-link').select(); toast('Copie o link selecionado.'); }); return; }
   if (t.closest('[data-close-notes]')) return Notes.toggle(false);
   const nc = t.closest('[data-nc]');
@@ -1095,6 +1275,14 @@ $('#notes').addEventListener('input', e => { if (e.target.id === 'notes-free') s
 $('#btn-notes').onclick = () => Notes.toggle();
 $('#btn-help').onclick = () => UI.help();
 $('#btn-sound').onclick = () => { Sound.unlock(); Sound.setMuted(!Sound.muted); $('#btn-sound').textContent = Sound.muted ? '🔇' : '🔊'; };
+document.addEventListener('change', e => { if (e.target.id === 'set-refute') App.send({ type: 'settings', refuteSecs: +e.target.value }); });
+// relógio de quem precisa mostrar carta
+setInterval(() => {
+  const els = $$('[data-countdown]'); if (!els.length) return;
+  const left = UI.deadline ? Math.max(0, Math.ceil((UI.deadline - performance.now()) / 1000)) : null;
+  els.forEach(el => { el.textContent = left == null ? '' : (left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left}s`); el.classList.toggle('urgent', left != null && left <= 10); });
+}, 250);
+$('#btn-music').onclick = () => { Sound.unlock(); const on = !Sound.music; Sound.setMusic(on); $('#btn-music').classList.toggle('on', on); };
 $('#btn-sea').onclick = () => { const on = !Sound.sea; Sound.setSea(on); $('#btn-sea').classList.toggle('on', on); };
 $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chat-in').value.trim(); if (v) App.send({ type: 'chat', text: v }); $('#chat-in').value = ''; };
 document.addEventListener('keydown', e => {
@@ -1102,6 +1290,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'n' || e.key === 'N') Notes.toggle();
   if (e.key === 'Escape') { if ($('#notes').classList.contains('open')) Notes.toggle(false); else if (!Modal.persistent) Modal.close(); }
   if ((e.key === 'r' || e.key === 'R') && App.pub && App.pub.phase === 'play') { const b = $('[data-act="roll"]'); if (b) b.click(); }
+});
+window.addEventListener('pagehide', () => {
+  try { if (App.role === 'client' && App.net && App.net.conn) App.net.conn.close(); if (App.role === 'host' && App.net && App.net.peer) App.net.peer.destroy(); } catch { }
 });
 window.addEventListener('beforeunload', e => { if (App.role === 'host' && App.pub && App.pub.phase === 'play') { e.preventDefault(); e.returnValue = ''; } });
 
