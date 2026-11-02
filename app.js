@@ -101,8 +101,9 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const pick = a => a[Math.floor(Math.random() * a.length)];
+const rnd = n => { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] % n; };
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = a => a[rnd(a.length)];
 const rid = (n = 10) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
 const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(4)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[b % 24]).join('');
 const store = {
@@ -336,21 +337,14 @@ class Host {
       st.wpos[m.w] = r;
       st.lastSug = { id: st.seq++, by: pid, s: m.s, w: m.w, r, result: null };
       this.log(`${P.name} suspeita: ${S[m.s].name}, com ${W[m.w].with}, ${ROOM[r].in}.`, 'sug');
-      const idx = st.players.findIndex(p => p.id === pid);
-      st.pending = { by: pid, cards: ['s:' + m.s, 'w:' + m.w, 'r:' + r], start: idx, step: 0, askingId: null };
-      this.advanceRefute();
-    } else if (t === 'accuse') {
-      if (!S[m.s] || !W[m.w] || !ROOM[m.r]) return;
-      const sol = st.solution, ok = sol.s === m.s && sol.w === m.w && sol.r === m.r;
-      st.lastAcc = { id: st.seq++, by: pid, s: m.s, w: m.w, r: m.r, ok };
-      this.log(`${P.name} faz uma ACUSAÇÃO: ${S[m.s].name}, com ${W[m.w].with}, ${ROOM[m.r].in}!`, 'acc');
-      if (ok) { st.phase = 'over'; st.winner = pid; this.log(`${P.name} desvendou o crime!`, 'win'); }
-      else {
-        P.out = true; st.priv[pid].sol = { ...sol };
-        this.log(`A acusação está errada. ${P.name} está fora da investigação, mas continua mostrando cartas.`, 'acc');
-        const alive = st.players.filter(p => !p.out);
-        if (alive.length <= 1) { st.phase = 'over'; st.winner = alive[0] ? alive[0].id : null; if (alive[0]) this.log(`${alive[0].name} é o último detetive de pé e vence!`, 'win'); }
-        else this.nextTurn();
+      const sol = st.solution;
+      if (sol.s === m.s && sol.w === m.w && sol.r === r) {
+        st.lastSug.result = { win: true }; st.phase = 'over'; st.winner = pid;
+        this.log(`O palpite de ${P.name} bate com o envelope! ${P.name} desvendou o crime!`, 'win');
+      } else {
+        const idx = st.players.findIndex(p => p.id === pid);
+        st.pending = { by: pid, cards: ['s:' + m.s, 'w:' + m.w, 'r:' + r], start: idx, step: 0, askingId: null };
+        this.advanceRefute();
       }
     } else if (t === 'end') {
       this.nextTurn();
@@ -395,8 +389,9 @@ class Host {
     const deck = shuffle(ALL_CARDS.filter(c => c !== 's:' + sol.s && c !== 'w:' + sol.w && c !== 'r:' + sol.r));
     st.priv = {};
     st.players.forEach(p => { st.priv[p.id] = { hand: [], shown: [], ask: null, sol: null }; });
-    deck.forEach((c, i) => st.priv[st.players[i % n].id].hand.push(c));
-    st.players.forEach(p => st.priv[p.id].hand.sort((a, b) => ALL_CARDS.indexOf(a) - ALL_CARDS.indexOf(b)));
+    // baralho único com as 18 cartas misturadas: cada um recebe o que vier, sem equilibrar categorias
+    const first = rnd(n);
+    deck.forEach((c, i) => st.priv[st.players[(first + i) % n].id].hand.push(c));
     st.pos = {}; SUSPECTS.forEach(s => { st.pos[s.id] = { r: STARTS[s.id][0], c: STARTS[s.id][1] }; });
     const rooms = shuffle(ROOMS.map(r => r.id)); st.wpos = {}; WEAPONS.forEach((w, i) => { st.wpos[w.id] = rooms[i]; });
     Object.assign(st, { phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
@@ -584,7 +579,6 @@ const UI = {
     if (firstOfGame) {
       const sh = (App.priv && App.priv.shown) || [];
       this.seen = { gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
-      Notes.init();
       if (prev && prev.phase === 'lobby') { Sound.horn(); }
       if (!store.get('aurora-intro-' + pub.gameId)) { store.set('aurora-intro-' + pub.gameId, 1); this.introModal(); }
     }
@@ -726,9 +720,8 @@ const UI = {
         if (myPos.room && PASSAGES[myPos.room]) acts += `<button class="btn" data-act="passage">⇲ Duto → ${ROOM[PASSAGES[myPos.room]].name}</button>`;
       } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.dice[0] + ts.dice[1]} passos) ou entre numa sala.`;
       else if (canSug) status = `Você está ${ROOM[myPos.room].in}. Dê seu palpite!`;
-      else status = 'Pode fazer uma acusação ou encerrar a vez.';
+      else status = 'Pode encerrar a vez.';
       if (canSug) acts += `<button class="btn gold" data-act="suggest">🔎 Dar palpite</button>`;
-      acts += `<button class="btn danger" data-act="accuse">⚖️ Acusar</button>`;
       if (ts.rolled || ts.moved || ts.suggested) acts += `<button class="btn" data-act="end">Encerrar vez ➜</button>`;
     } else if (cur) status = `Aguardando <b>${esc(cur.name)}</b>…`;
 
@@ -785,10 +778,10 @@ const UI = {
     const sh = (priv && priv.shown) || [];
     const last = sh[sh.length - 1];
     if (last && last.id !== sn.shown) {
-      sn.shown = last.id; Notes.autoMark(last.card, last.by);
+      sn.shown = last.id;
       const by = pub.players.find(p => p.id === last.by);
       Sound.card();
-      Modal.open(`<h2>${esc(by ? by.name : '?')} mostra uma carta…</h2><p class="hint">Só você está vendo. Já marquei no seu caderno.</p>
+      Modal.open(`<h2>${esc(by ? by.name : '?')} mostra uma carta…</h2><p class="hint">Só você está vendo. Anote no seu caderno (tecla N).</p>
         <div class="flip"><div class="flip-inner">${cardBack('face back')}${cardHTML(last.card, 'face front big')}</div></div>
         <button class="btn gold" data-close>Entendi</button>`, { kind: 'shown', cls: 'center' });
     }
@@ -825,7 +818,7 @@ const UI = {
     Modal.open(`<div class="poster-top">CONFIDENCIAL</div><h2>A bordo do Aurora</h2>
       <p>Augusto Faria foi encontrado morto durante o baile. Um envelope lacrado guarda a verdade: <b>quem</b>, <b>com o quê</b> e <b>onde</b>.</p>
       ${s ? `<div class="intro-me">${portrait(s)}<div><small>Você é</small><b>${esc(s.name)}</b><p>${esc(s.bio)}</p></div></div>` : ''}
-      <p>As cartas na sua mão <b>não</b> estão no envelope. Já marquei elas no seu caderno.</p>
+      <p>As cartas na sua mão <b>não</b> estão no envelope. Abra o caderno (tecla N) e faça suas anotações.</p>
       <div class="row-cards">${(App.priv ? App.priv.hand : []).map(c => cardHTML(c, 'sm')).join('')}</div>
       <button class="btn gold" data-close>Começar a investigar</button>`, { kind: 'intro', cls: 'center' });
   },
@@ -880,7 +873,7 @@ const UI = {
       <li>Dentro de uma sala, dê um <b>palpite</b>: suspeito + arma + a sala onde você está. O suspeito e a arma são levados até lá.</li>
       <li>Seguindo a ordem da mesa, o primeiro jogador que tiver uma das três cartas mostra <b>uma</b>, em segredo, só para você.</li>
       <li>Quem é levado para uma sala por um palpite pode, na sua vez, palpitar ali mesmo sem rolar os dados.</li>
-      <li>Quando tiver certeza, faça a <b>acusação</b> (em qualquer lugar, na sua vez). Acertou, venceu. Errou, está fora, mas continua mostrando cartas.</li>
+      <li>Não existe acusação: <b>vence quem fizer o palpite exatamente igual ao envelope</b>. Se ninguém conseguir mostrar carta, pode ser a pista que faltava (ou alguém blefando com as próprias cartas).</li>
       <li>Use o <b>caderno</b> (tecla N) para riscar o que já descobriu.</li></ol>
       <p class="hint">Fotos de época em domínio público ou licença livre, do Wikimedia Commons. <a href="img/CREDITOS.md" target="_blank" style="color:var(--gold2)">Ver créditos</a>.</p>
       <button class="btn gold" data-close>Entendi</button>`, { kind: 'help' });
@@ -896,7 +889,7 @@ document.addEventListener('click', e => {
   const act = t.closest('[data-act]');
   if (act) {
     const a = act.dataset.act;
-    if (a === 'suggest' || a === 'accuse') return UI.picker(a);
+    if (a === 'suggest') return UI.picker(a);
     if (a === 'showover') return UI.overModal();
     if (a === 'newgame') { Modal.close(); return App.send({ type: 'newgame' }); }
     if (a === 'end' && App.pub.ts && !App.pub.ts.suggested && App.pub.pos[App.mySid()].room && App.pub.ts.entered && !confirm('Encerrar a vez sem dar palpite?')) return;
