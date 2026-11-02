@@ -654,6 +654,17 @@ const UI = {
     for (const [r, list] of Object.entries(byRoom)) list.forEach((sid, i) => { out[sid] = this.roomSlot(r, i); });
     return out;
   },
+  showPath(key) {
+    const el = $('#path'); this.previewKey = key;
+    $$('.hl-cell.sel, .room.sel').forEach(x => x.classList.remove('sel'));
+    if (!el) return;
+    if (!key || !this.movePrev || this.movePrev[key] === undefined) { el.innerHTML = ''; return; }
+    const dots = []; let k = this.movePrev[key];
+    while (k !== undefined && this.movePrev[k] !== undefined) { if (!k.startsWith('room:')) dots.push(k); k = this.movePrev[k]; }
+    el.innerHTML = dots.map(d => { const [r, c] = d.split(',').map(Number); return `<i class="path-dot" style="left:${(c + 0.5) / N * 100}%;top:${(r + 0.5) / N * 100}%"></i>`; }).join('');
+    const target = key.startsWith('room:') ? $(`.room[data-room="${key.slice(5)}"]`) : $(`.hl-cell[data-key="${key}"]`);
+    if (target) target.classList.add('sel');
+  },
   setPawn(sid, xy) { const el = $('#pawn-' + sid); if (el && xy) { el.style.left = xy.x + '%'; el.style.top = xy.y + '%'; } },
   async animatePath(anim) {
     const el = $('#pawn-' + anim.sid); if (!el) return;
@@ -687,14 +698,39 @@ const UI = {
     $$('.room').forEach(el => el.classList.remove('reach'));
     $$('.passage').forEach(el => el.classList.remove('active'));
     let hl = '';
-    if (mine && !pub.pending && ts.rolled && !ts.moved) {
+    const choosing = !!(mine && !pub.pending && ts.rolled && !ts.moved);
+    $('#board').classList.toggle('choosing', choosing);
+    this.movePrev = null;
+    if (choosing) {
+      const { out, prev } = reachable(pub.pos, mySid, ts.dice[0] + ts.dice[1]);
+      this.movePrev = prev;
       ts.reach.forEach(k => {
         if (k.startsWith('room:')) $(`.room[data-room="${k.slice(5)}"]`).classList.add('reach');
-        else { const [r, c] = k.split(',').map(Number); hl += `<div class="hl-cell" data-key="${k}" style="left:${c / N * 100}%;top:${r / N * 100}%;width:${100 / N}%;height:${100 / N}%"></div>`; }
+        else { const [r, c] = k.split(',').map(Number); hl += `<div class="hl-cell" data-key="${k}" style="left:${c / N * 100}%;top:${r / N * 100}%;width:${100 / N}%;height:${100 / N}%"><b>${out[k] || ''}</b></div>`; }
       });
+      hl += '<div id="path"></div>';
     }
     if (mine && !pub.pending && !ts.rolled && !ts.moved && myPos && myPos.room && PASSAGES[myPos.room]) $(`.room[data-room="${myPos.room}"] .passage`).classList.add('active');
     $('#hl').innerHTML = hl;
+    this.previewKey = null;
+
+    // dica de movimento
+    let hint = '';
+    if (pub.phase === 'play' && mine && !pub.pending) {
+      const canSug0 = myPos.room && !ts.suggested && (ts.entered || (ts.summoned && !ts.rolled));
+      if (choosing) {
+        const rooms = ts.reach.filter(k => k.startsWith('room:')).length, cells = ts.reach.length - rooms;
+        hint = ts.reach.length
+          ? `🎲 Você tirou <b>${ts.dice[0] + ts.dice[1]}</b>. Escolha para onde ir:` +
+            (cells ? ` <span class="hint-cell"></span> <b>casa dourada</b> (o número = passos)` : '') +
+            (rooms ? `${cells ? ' ou' : ''} <span class="hint-room">ENTRAR</span> numa <b>sala</b> (entrar encerra o movimento)` : '') +
+            (TOUCH ? '. <i>Toque uma vez para ver o caminho e de novo para confirmar.</i>' : '.')
+          : '';
+      } else if (!ts.rolled && !ts.moved) {
+        hint = `É a sua vez: <b>role os dados</b> no painel${myPos.room && PASSAGES[myPos.room] ? ' ou use o <b>duto ⇲</b> desta sala' : ''}${ts.summoned && myPos.room ? ', ou dê um palpite aqui mesmo' : ''}.`;
+      } else if (canSug0) hint = `Você está ${ROOM[myPos.room].in}. Faça seu <b>palpite</b> no painel.`;
+    }
+    const mh = $('#move-hint'); mh.innerHTML = hint; mh.classList.toggle('hidden', !hint);
 
     // peões
     this.target = this.computeTargets(pub.pos);
@@ -906,11 +942,23 @@ document.addEventListener('click', e => {
   if (nc) { Notes.cycle(nc.dataset.nc, nc.dataset.np); return Notes.render(); }
 });
 
+const TOUCH = matchMedia('(hover: none)').matches;
 $('#board').addEventListener('click', e => {
-  const h = e.target.closest('[data-key]'); if (h) return App.send({ type: 'move', key: h.dataset.key });
   if (e.target.closest('.passage.active')) return App.send({ type: 'passage' });
-  const room = e.target.closest('.room.reach'); if (room) return App.send({ type: 'move', key: 'room:' + room.dataset.room });
+  const h = e.target.closest('[data-key]'), room = e.target.closest('.room.reach');
+  const key = h ? h.dataset.key : room ? 'room:' + room.dataset.room : null;
+  if (!key) return;
+  // no celular: 1º toque mostra o caminho, 2º toque confirma
+  if (TOUCH && UI.previewKey !== key) { UI.showPath(key); return; }
+  UI.showPath(null);
+  App.send({ type: 'move', key });
 });
+$('#board').addEventListener('mouseover', e => {
+  if (TOUCH) return;
+  const h = e.target.closest('[data-key]'), room = e.target.closest('.room.reach');
+  UI.showPath(h ? h.dataset.key : room ? 'room:' + room.dataset.room : null);
+});
+$('#board').addEventListener('mouseleave', () => { if (!TOUCH) UI.showPath(null); });
 
 $('#notes').addEventListener('input', e => { if (e.target.id === 'notes-free') store.set(Notes.key() + '-free', e.target.value); });
 $('#btn-notes').onclick = () => Notes.toggle();
