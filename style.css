@@ -456,6 +456,30 @@ kbd { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; paddi
 .code.spectating::after { content: ' · 👁 assistindo'; color: var(--gold2); }
 .conn-status { max-width: min(640px, 92vw); text-align: center; line-height: 1.35; border-radius: 10px; padding: 10px 18px; border: 1px solid #ff9a9a; }
 
+/* ---------- opções, placar, eventos, revelação ---------- */
+.set-row { display: flex !important; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #3b2e1b; text-align: left; }
+.set-row select { min-width: 190px; }
+.scoreboard { max-width: 420px; margin: 0 auto 18px; }
+.scoreboard ol { list-style: none; padding: 0; margin: 0; }
+.scoreboard li { display: flex; justify-content: space-between; padding: 5px 10px; border-bottom: 1px solid #3b2e1b; }
+.scoreboard li.lead { background: rgba(201,165,76,.15); color: var(--gold2); }
+.scoreboard.in-modal { margin-top: 16px; text-align: left; }
+.trophy { font-size: 12px; color: var(--gold2); }
+.event-chip { margin-top: 10px; padding: 6px 10px; background: rgba(80,140,200,.15); border: 1px solid #5f8fc0; border-radius: 4px; font-size: 14px; color: #cfe3f6; }
+.ev-big { font-family: var(--deco); font-size: 26px; color: var(--gold2); margin: 6px 0 2px; }
+.ev-text { margin: 0; max-width: 420px; font-size: 16px; }
+.tunnel.closed { filter: grayscale(1) brightness(.6) !important; }
+.tunnel.closed span { background: #8a2a2a; }
+.tunnel.closed::after { content: '✕'; color: #ff6b6b; font-size: clamp(10px, 1.6vmin, 18px); right: -4px; top: -9px; }
+.ds-mod { display: block; font-size: 14px; color: #cfe3f6; }
+.reveal { text-align: left; margin-top: 14px; }
+.rv-row { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-left: 4px solid var(--c); background: rgba(255,255,255,.03); margin-bottom: 6px; flex-wrap: wrap; }
+.rv-who { display: flex; gap: 8px; align-items: center; min-width: 190px; }
+.rv-who .portrait { width: 34px; }
+.rv-who b { display: block; } .rv-who small { color: var(--muted); font-size: 13px; }
+.rv-hand { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.facts { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; font-size: 15px; }
+
 /* ---------- escolha de movimento ---------- */
 .board.choosing .tile, .board.choosing .tunnel, .board.choosing .start { filter: brightness(.5) saturate(.6); }
 .board.choosing .room:not(.reach) { filter: brightness(.45) saturate(.5); }

@@ -51,6 +51,15 @@ const tunnelMap = {};
 TUNNELS.forEach(t => { tunnelMap[t.a.join(',')] = t.b.join(','); tunnelMap[t.b.join(',')] = t.a.join(','); });
 const STARTS = { cap: [0, 7], con: [0, 16], doc: [7, 23], can: [23, 16], bar: [23, 7], mar: [16, 0] };
 
+// eventos do navio: duram uma rodada
+const EVENTS = {
+  storm: { icon: '⛈️', name: 'Tempestade', text: t => `Ondas fortes lacraram a escotilha ${t}. Ninguém passa por ela nesta rodada.` },
+  blackout: { icon: '🕯️', name: 'Apagão', text: () => 'As luzes dos corredores apagaram. Ninguém anda mais de 4 casas nesta rodada.' },
+  calm: { icon: '🌅', name: 'Mar calmo', text: () => 'O navio desliza sem balanço. Todo mundo anda 2 casas a mais nesta rodada.' },
+  ducts: { icon: '🚧', name: 'Dutos interditados', text: () => 'A tripulação fechou os dutos de serviço das salas de canto nesta rodada.' },
+};
+const closedTunnels = ev => ev && ev.key === 'storm' ? [ev.tunnel] : [];
+const diceSum = d => (d || []).reduce((a, b) => a + b, 0);
 const S = Object.fromEntries(SUSPECTS.map(x => [x.id, x]));
 const W = Object.fromEntries(WEAPONS.map(x => [x.id, x]));
 const ROOM = Object.fromEntries(ROOMS.map(x => [x.id, x]));
@@ -64,7 +73,7 @@ const doorMap = {};
 ROOMS.forEach(rm => rm.doors.forEach(([r, c]) => { (doorMap[r + ',' + c] = doorMap[r + ',' + c] || []).push(rm.id); }));
 const isHall = (r, c) => r >= 0 && c >= 0 && r < N && c < N && !roomAt[r + ',' + c];
 
-function neighbors(k, occ) {
+function neighbors(k, occ, closed = []) {
   const res = [];
   if (k.startsWith('room:')) {
     for (const [r, c] of ROOM[k.slice(5)].doors) { const kk = r + ',' + c; if (!occ.has(kk)) res.push(kk); }
@@ -76,12 +85,12 @@ function neighbors(k, occ) {
     if (isHall(rr, cc) && !occ.has(rr + ',' + cc)) res.push(rr + ',' + cc);
   }
   for (const id of (doorMap[k] || [])) res.push('room:' + id);
-  if (tunnelMap[k] && !occ.has(tunnelMap[k])) res.push(tunnelMap[k]);
+  if (tunnelMap[k] && !occ.has(tunnelMap[k]) && !closed.includes(tunnelOf[k].id)) res.push(tunnelMap[k]);
   return res;
 }
 
 // casas alcançáveis com até `steps` passos; entrar numa sala encerra o movimento
-function reachable(pos, sid, steps) {
+function reachable(pos, sid, steps, closed = []) {
   const occ = new Set();
   for (const [k, p] of Object.entries(pos)) if (k !== sid && p.r != null) occ.add(p.r + ',' + p.c);
   const st = pos[sid];
@@ -92,7 +101,7 @@ function reachable(pos, sid, steps) {
     if (d > 0) out[k] = d;
     if (k !== startKey && k.startsWith('room:')) continue;
     if (d === steps) continue;
-    for (const n of neighbors(k, occ)) if (dist[n] == null) { dist[n] = d + 1; prev[n] = k; q.push(n); }
+    for (const n of neighbors(k, occ, closed)) if (dist[n] == null) { dist[n] = d + 1; prev[n] = k; q.push(n); }
   }
   return { out, prev };
 }
@@ -252,6 +261,17 @@ const Sound = {
   },
 };
 
+/* ---------------- NARRAÇÃO (voz do navegador) ---------------- */
+const Voice = {
+  on: store.get('aurora-voice', false),
+  voice() { const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || []; return vs.find(v => /pt[-_]BR/i.test(v.lang)) || vs.find(v => /^pt/i.test(v.lang)) || null; },
+  say(text) {
+    if (!this.on || !window.speechSynthesis) return;
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'pt-BR'; const v = this.voice(); if (v) u.voice = v; u.rate = 1.02; u.pitch = 0.9; speechSynthesis.speak(u); } catch { }
+  },
+  toggle() { this.on = !this.on; store.set('aurora-voice', this.on); if (this.on) this.say('Narração ligada.'); else if (window.speechSynthesis) speechSynthesis.cancel(); return this.on; },
+};
+
 /* ---------------- ANFITRIÃO (estado oficial) ---------------- */
 const PEER_PREFIX = 'misterio-aurora-v1-';
 const HOST_LOST = '⚓ O anfitrião caiu ou fechou a página. A partida está pausada e continua de onde parou quando ele voltar (ele abre o site e clica em "Retomar a partida"). Tentando reconectar sozinho…';
@@ -262,7 +282,8 @@ class Host {
   constructor(code, saved, myName) {
     this.code = code; this.conns = {}; this.retries = 0; this.lastSeen = {};
     this.st = saved || { code, phase: 'lobby', hostId: ME, players: [], log: [], seq: 1, priv: {} };
-    this.st.settings = this.st.settings || { refuteSecs: 60 };
+    this.st.settings = Object.assign({ refuteSecs: 60, dice: 2, events: true, autoEnd: true }, this.st.settings || {});
+    this.st.scores = this.st.scores || {};
     this.st.spectators = this.st.spectators || [];
     if (!saved) { this.st.players.push({ id: ME, name: myName, suspect: null, out: false }); this.log(`${myName} abriu a sala.`); }
     // anfitrião voltou com alguém devendo carta: retoma o relógio
@@ -370,7 +391,10 @@ class Host {
     }
     if (!P) return; // espectador só conversa e reage
     if (t === 'settings' && pid === st.hostId && st.phase === 'lobby') {
-      const secs = Number(m.refuteSecs); if ([0, 30, 60, 90, 120].includes(secs)) st.settings.refuteSecs = secs;
+      if (m.refuteSecs != null) { const secs = Number(m.refuteSecs); if ([0, 30, 60, 90, 120].includes(secs)) st.settings.refuteSecs = secs; }
+      if (m.dice != null && [1, 2].includes(Number(m.dice))) st.settings.dice = Number(m.dice);
+      if (m.events != null) st.settings.events = !!m.events;
+      if (m.autoEnd != null) st.settings.autoEnd = !!m.autoEnd;
       return this.broadcast();
     }
     if (t === 'skip' && pid === st.hostId && st.phase === 'play') {
@@ -401,11 +425,14 @@ class Host {
 
     if (t === 'roll') {
       if (ts.rolled || ts.moved) return;
-      const d = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
-      ts.dice = d; ts.diceId = st.seq++; ts.rolled = true;
-      const { out, prev } = reachable(st.pos, sid, d[0] + d[1]);
+      const nd = st.settings.dice === 1 ? 1 : 2, d = Array.from({ length: nd }, () => 1 + rnd(6));
+      let steps = diceSum(d), mod = '';
+      if (st.event && st.event.key === 'calm') { steps += 2; mod = ' (+2 mar calmo)'; }
+      if (st.event && st.event.key === 'blackout' && steps > 4) { steps = 4; mod = ' (máx. 4 no apagão)'; }
+      ts.dice = d; ts.steps = steps; ts.diceId = st.seq++; ts.rolled = true;
+      const { out, prev } = reachable(st.pos, sid, steps, closedTunnels(st.event));
       ts.reach = Object.keys(out); st._prev = prev;
-      this.log(`${P.name} rolou ${d[0]} + ${d[1]} = ${d[0] + d[1]}.`, 'roll');
+      this.log(`${P.name} rolou ${d.join(' + ')}${d.length > 1 ? ' = ' + diceSum(d) : ''}${mod}.`, 'roll');
       if (!ts.reach.length) { this.log(`${P.name} está encurralado e não pode se mover.`); ts.moved = true; }
     } else if (t === 'move') {
       if (!ts.rolled || ts.moved || !ts.reach.includes(m.key)) return;
@@ -418,7 +445,7 @@ class Host {
       ts.moved = true; ts.reach = [];
       st.anim = { id: st.seq++, sid, path };
     } else if (t === 'passage') {
-      if (ts.rolled || ts.moved || !pos.room || !PASSAGES[pos.room]) return;
+      if (ts.rolled || ts.moved || !pos.room || !PASSAGES[pos.room] || (st.event && st.event.key === 'ducts')) return;
       const dest = PASSAGES[pos.room]; st.pos[sid] = { room: dest };
       ts.rolled = ts.moved = ts.entered = true; ts.reach = [];
       st.anim = { id: st.seq++, sid, path: ['room:' + dest] };
@@ -439,6 +466,7 @@ class Host {
       const sol = st.solution;
       if (sol.s === m.s && sol.w === m.w && sol.r === r) {
         st.lastSug.result = { win: true }; st.phase = 'over'; st.winner = pid; this.hist().win = true;
+        st.scores = st.scores || {}; st.scores[pid] = (st.scores[pid] || 0) + 1; st.scoreNames = st.scoreNames || {}; st.scoreNames[pid] = P.name;
         this.log(`O palpite de ${P.name} bate com o envelope! ${P.name} desvendou o crime!`, 'win');
       } else {
         const idx = st.players.findIndex(p => p.id === pid);
@@ -488,7 +516,7 @@ class Host {
   }
   // depois que o palpite é respondido, a vez passa sozinha
   scheduleAutoEnd() {
-    const st = this.st, sugId = st.lastSug && st.lastSug.id; if (!sugId) return;
+    const st = this.st, sugId = st.lastSug && st.lastSug.id; if (!sugId || st.settings.autoEnd === false) return;
     st.ts.autoEnd = true;
     clearTimeout(this._autoEnd);
     this._autoEnd = setTimeout(() => {
@@ -524,7 +552,7 @@ class Host {
     deck.forEach((c, i) => st.priv[st.players[(first + i) % n].id].hand.push(c));
     st.pos = {}; SUSPECTS.forEach(s => { st.pos[s.id] = { r: STARTS[s.id][0], c: STARTS[s.id][1] }; });
     const rooms = shuffle(ROOMS.map(r => r.id)); st.wpos = {}; WEAPONS.forEach((w, i) => { st.wpos[w.id] = rooms[i]; });
-    Object.assign(st, { history: [], phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
+    Object.assign(st, { history: [], event: null, round: 1, turnCount: 0, phase: 'play', gameId: rid(8), turn: Math.floor(Math.random() * n), summoned: {}, pending: null, lastSug: null, lastAcc: null, anim: null, winner: null });
     st.log = []; // diário e chat começam limpos a cada partida
     this.log('O Aurora apita. A investigação começou!', 'win');
     this.beginTurn();
@@ -538,7 +566,19 @@ class Host {
   nextTurn() {
     const st = this.st, n = st.players.length; let i = st.turn;
     for (let k = 0; k < n; k++) { i = (i + 1) % n; if (!st.players[i].out) break; }
-    st.turn = i; this.beginTurn();
+    st.turn = i;
+    st.turnCount = (st.turnCount || 0) + 1;
+    if (st.turnCount % n === 0) this.newRound();
+    this.beginTurn();
+  }
+  newRound() {
+    const st = this.st; st.round = (st.round || 1) + 1;
+    if (st.event) { this.log(`${EVENTS[st.event.key].icon} ${EVENTS[st.event.key].name} terminou.`); st.event = null; }
+    if (!st.settings.events || Math.random() > 0.35) return;
+    const key = pick(Object.keys(EVENTS)), ev = { id: st.seq++, key, round: st.round };
+    if (key === 'storm') ev.tunnel = pick(TUNNELS).id;
+    st.event = ev;
+    this.log(`${EVENTS[key].icon} Evento do navio: ${EVENTS[key].name}! ${EVENTS[key].text(ev.tunnel)}`, 'event');
   }
   toLobby() {
     const st = this.st;
@@ -546,7 +586,7 @@ class Host {
     st.players.forEach(p => { p.out = false; });
     (st.spectators || []).filter(v => this.isOnline(v.id)).forEach(v => { if (st.players.length < 6) st.players.push({ id: v.id, name: v.name, suspect: null, out: false }); });
     st.spectators = [];
-    for (const k of ['react', 'history', 'solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
+    for (const k of ['event', 'round', 'turnCount', 'react', 'history', 'solution', 'pos', 'wpos', 'ts', 'pending', 'lastSug', 'lastAcc', 'anim', 'winner', 'summoned', '_prev', 'gameId']) delete st[k];
     st.priv = {}; st.phase = 'lobby';
     this.log('Nova partida: escolham seus personagens.');
   }
@@ -558,7 +598,16 @@ class Host {
     st.players.forEach(p => { pub.handCounts[p.id] = (st.priv[p.id] && st.priv[p.id].hand.length) || 0; pub.online[p.id] = this.isOnline(p.id); });
     (st.spectators || []).forEach(v => { pub.online[v.id] = this.isOnline(v.id); });
     if (st.pending && st.pending.deadline) pub.pending = { ...st.pending, remainingMs: Math.max(0, st.pending.deadline - Date.now()) };
-    if (st.phase === 'over') pub.solution = st.solution;
+    if (st.phase === 'over') {
+      pub.solution = st.solution;
+      const sol = st.solution, H = st.history || [];
+      const stats = {};
+      st.players.forEach(p => { stats[p.id] = { hand: (st.priv[p.id] || {}).hand || [], asked: 0, showed: 0, passed: 0 }; });
+      H.forEach(h => { if (stats[h.by]) stats[h.by].asked++; if (h.shownBy && stats[h.shownBy]) stats[h.shownBy].showed++; h.passed.forEach(x => { if (stats[x]) stats[x].passed++; }); });
+      let closest = null;
+      H.filter(h => !h.win).forEach(h => { const hits = (h.s === sol.s) + (h.w === sol.w) + (h.r === sol.r); if (!closest || hits > closest.hits) closest = { n: h.n, by: h.by, hits, s: h.s, w: h.w, r: h.r }; });
+      pub.reveal = { stats, closest, total: H.length };
+    }
     return { pub, priv: (st.priv && st.priv[pid]) || null };
   }
   broadcast() {
@@ -719,6 +768,19 @@ function banner(html, ms = 4200) {
 /* ---------------- UI ---------------- */
 const UI = {
   tab: 'sugs',
+  settingRow(key, label, opts, val) {
+    const cur = (opts.find(o => o[0] === val) || opts[0])[1];
+    return `<label class="set-row"><span>${label}</span>${App.isHost()
+      ? `<select data-setting="${key}">${opts.map(([v, t]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+      : `<b>${cur}</b>`}</label>`;
+  },
+  scoreboard(cls = '') {
+    const pub = App.pub, sc = pub.scores || {}, names = pub.scoreNames || {};
+    const ids = Object.keys(sc).filter(id => sc[id] > 0).sort((a, b) => sc[b] - sc[a]);
+    if (!ids.length) return '';
+    const nm = id => { const p = pub.players.find(x => x.id === id); return esc(p ? p.name : names[id] || '?') + (id === ME ? ' (você)' : ''); };
+    return `<div class="scoreboard ${cls}"><h3>🏆 Placar da sala</h3><ol>${ids.map((id, i) => `<li class="${i === 0 ? 'lead' : ''}"><span>${i === 0 ? '👑 ' : ''}${nm(id)}</span><b>${sc[id]} ${sc[id] > 1 ? 'vitórias' : 'vitória'}</b></li>`).join('')}</ol></div>`;
+  },
   boardBuilt: false, seen: null, animating: new Set(), target: {},
   show(id) {
     ['home', 'lobby', 'game'].forEach(s => $('#' + s).classList.toggle('hidden', s !== id));
@@ -743,7 +805,7 @@ const UI = {
     const firstOfGame = !this.seen || this.seen.gameId !== pub.gameId;
     if (firstOfGame) {
       const sh = (App.priv && App.priv.shown) || [];
-      this.seen = { react: pub.react && pub.react.id, gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
+      this.seen = { event: pub.event && pub.event.id, react: pub.react && pub.react.id, gameId: pub.gameId, dice: pub.ts && pub.ts.diceId, anim: pub.anim && pub.anim.id, sug: pub.lastSug && pub.lastSug.id, acc: pub.lastAcc && pub.lastAcc.id, shown: sh.length ? sh[sh.length - 1].id : 0, wrong: !!(App.priv && App.priv.sol), over: pub.phase === 'over' ? pub.gameId : null, turn: null, logLen: 0 };
       if (prev && prev.phase === 'lobby') { Sound.horn(); }
       this.seenChats = pub.log.filter(e => e.kind === 'chat').length; this.seen.logLen = 0;
       if (!store.get('aurora-intro-' + pub.gameId)) { store.set('aurora-intro-' + pub.gameId, 1); this.introModal(); }
@@ -771,11 +833,12 @@ const UI = {
       <h3>A bordo (${pub.players.length}/6)</h3>
       <ul class="aboard">${pub.players.map(p => `<li><i class="dot ${pub.online[p.id] ? 'on' : ''}"></i>${esc(p.name)}${p.id === pub.hostId ? ' <em>anfitrião</em>' : ''}${p.suspect ? ` · <span style="color:${S[p.suspect].color}">${S[p.suspect].short}</span>` : ''}</li>`).join('')}</ul>
       <div class="settings"><h3>Regras da mesa</h3>
-        <label>Tempo para mostrar carta:
-          ${App.isHost()
-            ? `<select id="set-refute">${[[30, '30 segundos'], [60, '1 minuto'], [90, '1 min e meio'], [120, '2 minutos'], [0, 'Sem limite']].map(([v, t]) => `<option value="${v}" ${pub.settings && pub.settings.refuteSecs === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`
-            : `<b>${pub.settings && pub.settings.refuteSecs ? (pub.settings.refuteSecs >= 60 ? (pub.settings.refuteSecs / 60).toString().replace('.', ',') + ' min' : pub.settings.refuteSecs + 's') : 'sem limite'}</b>`}
-        </label><p class="hint">Se o tempo acabar, o jogo mostra uma das cartas da pessoa por sorteio. A vez passa sozinha depois que o palpite é respondido.</p></div>
+        ${UI.settingRow('refute', 'Tempo para mostrar carta', [[30, '30 segundos'], [60, '1 minuto'], [90, '1 min e meio'], [120, '2 minutos'], [0, 'Sem limite']], pub.settings.refuteSecs)}
+        ${UI.settingRow('dice', 'Dados', [[2, '2 dados (2 a 12 casas)'], [1, '1 dado (1 a 6 casas)']], pub.settings.dice)}
+        ${UI.settingRow('events', 'Eventos do navio', [[1, 'Ligados'], [0, 'Desligados']], pub.settings.events ? 1 : 0)}
+        ${UI.settingRow('autoEnd', 'Passar a vez sozinho após o palpite', [[1, 'Sim'], [0, 'Não']], pub.settings.autoEnd ? 1 : 0)}
+        <p class="hint">Tempo esgotado: o jogo mostra uma das cartas da pessoa por sorteio. Eventos: a cada rodada pode acontecer algo no navio (tempestade, apagão, mar calmo, dutos fechados).</p></div>
+      ${UI.scoreboard()}
       ${App.isHost()
         ? `<button class="btn gold big" data-start ${pub.players.length < 2 ? 'disabled' : ''}>Zarpar! Começar a partida</button><p class="hint">Mínimo 2 jogadores, o ideal é de 3 a 6. Quem não escolher personagem recebe um aleatório.</p>`
         : `<p class="hint">Aguardando o anfitrião começar…</p>`}
@@ -883,7 +946,7 @@ const UI = {
     $('#board').classList.toggle('choosing', choosing);
     this.movePrev = null;
     if (choosing) {
-      const { out, prev } = reachable(pub.pos, mySid, ts.dice[0] + ts.dice[1]);
+      const { out, prev } = reachable(pub.pos, mySid, ts.steps || diceSum(ts.dice), closedTunnels(pub.event));
       this.movePrev = prev;
       var viaTunnels = new Set();
       ts.reach.forEach(k => {
@@ -896,10 +959,12 @@ const UI = {
       });
       hl += '<div id="path"></div>';
     }
-    if (mine && !pub.pending && !ts.rolled && !ts.moved && myPos && myPos.room && PASSAGES[myPos.room]) $(`.room[data-room="${myPos.room}"] .passage`).classList.add('active');
+    if (mine && !pub.pending && !ts.rolled && !ts.moved && myPos && myPos.room && PASSAGES[myPos.room] && !(pub.event && pub.event.key === 'ducts')) $(`.room[data-room="${myPos.room}"] .passage`).classList.add('active');
     $('#hl').innerHTML = hl;
     this.previewKey = null;
     $$('.tunnel-links path').forEach(p => p.classList.toggle('on', choosing && viaTunnels.has(p.dataset.link)));
+    const closedT = closedTunnels(pub.event);
+    $$('.tunnel').forEach(el => el.classList.toggle('closed', closedT.includes(el.dataset.tunnel)));
     $$('.tunnel').forEach(el => el.classList.toggle('on', choosing && viaTunnels.has(el.dataset.tunnel)));
 
     // dica de movimento
@@ -909,7 +974,7 @@ const UI = {
       if (choosing) {
         const rooms = ts.reach.filter(k => k.startsWith('room:')).length, cells = ts.reach.length - rooms;
         hint = ts.reach.length
-          ? `🎲 <b>${ts.dice[0] + ts.dice[1]}</b>: clique numa <span class="hint-cell"></span> <b>casa dourada</b> (número = passos)` +
+          ? `🎲 <b>${ts.steps || diceSum(ts.dice)}</b>: clique numa <span class="hint-cell"></span> <b>casa dourada</b> (número = passos)` +
             (rooms ? ` ou numa sala <span class="hint-room">▶ ENTRAR</span>` : '') + '.' +
             (viaTunnels.size ? ` <span class="hint-t">Escotilha ${[...viaTunnels].join(' e ')} no alcance: leva à placa da mesma cor do outro lado (1 passo).</span>` : '') +
             (TOUCH ? ' <i>1º toque mostra o caminho, 2º confirma.</i>' : '') +
@@ -952,8 +1017,8 @@ const UI = {
       if (!ts.rolled && !ts.moved) {
         status = myPos.room ? `${ts.summoned ? 'Você foi trazido' : 'Você está'} ${ROOM[myPos.room].in}. Pode palpitar aqui mesmo ou rolar os dados para andar.` : 'Sua vez! Role os dados.';
         acts += `<button class="btn gold" data-act="roll">🎲 Rolar dados</button>`;
-        if (myPos.room && PASSAGES[myPos.room]) acts += `<button class="btn" data-act="passage">⇲ Duto → ${ROOM[PASSAGES[myPos.room]].name}</button>`;
-      } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.dice[0] + ts.dice[1]} passos) ou entre numa sala${stay ? ', ou fique e palpite aqui' : ''}.`;
+        if (myPos.room && PASSAGES[myPos.room] && !(pub.event && pub.event.key === 'ducts')) acts += `<button class="btn" data-act="passage">⇲ Duto → ${ROOM[PASSAGES[myPos.room]].name}</button>`;
+      } else if (ts.rolled && !ts.moved) status = `Escolha uma casa iluminada (até ${ts.steps || diceSum(ts.dice)} passos) ou entre numa sala${stay ? ', ou fique e palpite aqui' : ''}.`;
       else if (canSug) status = `Você está ${ROOM[myPos.room].in}. Dê seu palpite!`;
       else if (ts.autoEnd) status = 'Palpite respondido. <b>A vez passa sozinha</b> em instantes…';
       else status = 'Pode encerrar a vez.';
@@ -972,10 +1037,11 @@ const UI = {
       else if (g.result && g.result.by) { const rb = pub.players.find(p => p.id === g.result.by); res = `${esc(rb ? rb.name : '?')} mostrou uma carta`; }
       sugBox = `<div class="last-sug"><small>Último palpite · ${esc(by ? by.name : '')}</small><div>${S[g.s].short}, ${W[g.w].name}, ${ROOM[g.r].name}</div><small>${res}</small></div>`;
     }
-    const d = ts.dice || [0, 0];
+    const nDice = (ts.dice && ts.dice.length) || pub.settings.dice || 2, d = ts.dice || Array(nDice).fill(0);
+    const ev = pub.event && pub.phase === 'play' ? `<div class="event-chip">${EVENTS[pub.event.key].icon} <b>${EVENTS[pub.event.key].name}</b> · ${EVENTS[pub.event.key].text(pub.event.tunnel)}</div>` : '';
     $('#turn').innerHTML = cur ? `
       <div class="turn-head ${mine ? 'mine' : ''}">${portrait(S[cur.suspect])}<div><small>${pub.phase === 'over' ? 'FIM DE JOGO' : mine ? 'SUA VEZ' : 'VEZ DE'}</small><b>${esc(cur.name)}</b><span style="color:${S[cur.suspect].color}">${S[cur.suspect].short}</span></div>
-        <div class="dice"><div class="die" id="d1">${dieHTML(d[0])}</div><div class="die" id="d2">${dieHTML(d[1])}</div></div></div>
+        <div class="dice"><div class="die" id="d1">${dieHTML(d[0])}</div>${nDice > 1 ? `<div class="die" id="d2">${dieHTML(d[1])}</div>` : ''}</div></div>${ev}
       <p class="status">${status}</p><div class="actions">${acts}</div>${sugBox}` : '';
 
     // mão
@@ -985,7 +1051,7 @@ const UI = {
     const specs = pub.spectators || [];
     $('#players').innerHTML = '<h3>Detetives</h3>' + pub.players.map((p, i) => `
       <div class="pl ${i === pub.turn ? 'cur' : ''} ${p.out ? 'out' : ''}" data-pl="${p.id}">${portrait(S[p.suspect])}
-        <div><b>${esc(p.name)}${p.id === ME ? ' (você)' : ''}</b><small style="color:${S[p.suspect].color}">${S[p.suspect].short}</small></div>
+        <div><b>${esc(p.name)}${p.id === ME ? ' (você)' : ''}${(pub.scores || {})[p.id] ? ` <span class="trophy" title="vitórias na sala">🏆${pub.scores[p.id]}</span>` : ''}</b><small style="color:${S[p.suspect].color}">${S[p.suspect].short}</small></div>
         <span class="pl-meta"><i class="dot ${pub.online[p.id] ? 'on' : ''}" title="${pub.online[p.id] ? 'conectado' : 'desconectado'}"></i>${pub.online[p.id] ? '' : '<em class="off">offline</em> '}🂠 ${pub.handCounts[p.id]}${p.out ? ' · fora' : ''}</span></div>`).join('') +
       (specs.length ? `<p class="specs">👁 Assistindo: ${specs.map(v => esc(v.name) + (v.id === ME ? ' (você)' : '')).join(', ')}</p>` : '') +
       `<div class="reacts" title="Reagir para a mesa">${REACTIONS.map(e => `<button class="react-btn" data-react="${e}">${e}</button>`).join('')}</div>`;
@@ -1019,6 +1085,7 @@ const UI = {
     if (pub.lastSug && pub.lastSug.id !== sn.sug) {
       sn.sug = pub.lastSug.id; const g = pub.lastSug, by = pub.players.find(p => p.id === g.by);
       Sound.sting();
+      Voice.say(`${by.id === ME ? 'Você suspeita' : by.name + ' suspeita'} de ${S[g.s].name}, com ${W[g.w].with}, ${ROOM[g.r].in}.`);
       banner(`<small>${esc(by.name)} suspeita…</small><div class="banner-cards">${cardHTML('s:' + g.s, 'sm')}${cardHTML('w:' + g.w, 'sm')}${cardHTML('r:' + g.r, 'sm')}</div>`, 4500);
     }
     if (pub.lastAcc && pub.lastAcc.id !== sn.acc) {
@@ -1044,6 +1111,11 @@ const UI = {
     }
     if (pub.phase === 'over' && sn.over !== pub.gameId) { sn.over = pub.gameId; this.overModal(); }
     if (pub.react && pub.react.id !== sn.react) { sn.react = pub.react.id; this.showReact(pub.react); }
+    if (pub.event && pub.event.id !== sn.event) {
+      sn.event = pub.event.id; const E = EVENTS[pub.event.key];
+      Sound.horn(); banner(`<small>Evento do navio</small><div class="ev-big">${E.icon} ${E.name}</div><p class="ev-text">${E.text(pub.event.tunnel)}</p>`, 6000);
+      Voice.say(`Evento do navio: ${E.name}. ${E.text(pub.event.tunnel)}`);
+    }
     const cur = pub.players[pub.turn];
     if (cur && pub.phase === 'play') {
       const turnKey = pub.turn + ':' + (pub.log.filter(e => e.kind === 'turn').length);
@@ -1100,28 +1172,43 @@ const UI = {
   },
   async rollDice(final) {
     Sound.dice();
-    // dado grande no meio do tabuleiro, para todos
-    const cur = App.pub.players[App.pub.turn], mine = cur && cur.id === ME;
+    const cur = App.pub.players[App.pub.turn], mine = cur && cur.id === ME, n = final.length;
     const show = $('#dice-show'); clearTimeout(this._diceHide);
-    show.innerHTML = `<div class="ds-name">${mine ? 'Você rola' : esc(cur ? cur.name : '') + ' rola'} os dados…</div>
-      <div class="ds-dice"><div class="bigdie" id="bd1">${dieHTML(1)}</div><div class="bigdie b2" id="bd2">${dieHTML(1)}</div></div><div class="ds-total">&nbsp;</div>`;
+    show.innerHTML = `<div class="ds-name">${mine ? 'Você rola' : esc(cur ? cur.name : '') + ' rola'} ${n > 1 ? 'os dados' : 'o dado'}…</div>
+      <div class="ds-dice">${final.map((_, i) => `<div class="bigdie ${i ? 'b2' : ''}" id="bd${i + 1}">${dieHTML(1)}</div>`).join('')}</div><div class="ds-total">&nbsp;</div>`;
     show.classList.remove('hidden', 'out'); void show.offsetWidth; show.classList.add('in');
+    const small = i => $('#d' + (i + 1)), big = i => $('#bd' + (i + 1));
     const t0 = performance.now();
     while (performance.now() - t0 < 950) {
-      const r1 = 1 + Math.floor(Math.random() * 6), r2 = 1 + Math.floor(Math.random() * 6);
-      const a = $('#d1'), b = $('#d2'), A = $('#bd1'), B = $('#bd2');
-      if (a && b) { a.innerHTML = dieHTML(r1); b.innerHTML = dieHTML(r2); a.classList.add('rolling'); b.classList.add('rolling'); }
-      if (A && B) { A.innerHTML = dieHTML(r1); B.innerHTML = dieHTML(r2); }
+      final.forEach((_, i) => { const r = 1 + Math.floor(Math.random() * 6); if (small(i)) { small(i).innerHTML = dieHTML(r); small(i).classList.add('rolling'); } if (big(i)) big(i).innerHTML = dieHTML(r); });
       await sleep(75);
     }
-    const a = $('#d1'), b = $('#d2'), A = $('#bd1'), B = $('#bd2');
-    if (a && b) { a.innerHTML = dieHTML(final[0]); b.innerHTML = dieHTML(final[1]); a.classList.remove('rolling'); b.classList.remove('rolling'); }
-    if (A && B) { A.innerHTML = dieHTML(final[0]); B.innerHTML = dieHTML(final[1]); A.classList.add('land'); B.classList.add('land'); }
-    const tot = $('#dice-show .ds-total'); if (tot) tot.innerHTML = `${final[0]} + ${final[1]} = <b>${final[0] + final[1]}</b>`;
+    final.forEach((v, i) => { if (small(i)) { small(i).innerHTML = dieHTML(v); small(i).classList.remove('rolling'); } if (big(i)) { big(i).innerHTML = dieHTML(v); big(i).classList.add('land'); } });
+    const steps = App.pub.ts && App.pub.ts.steps, sum = diceSum(final);
+    const tot = $('#dice-show .ds-total');
+    if (tot) tot.innerHTML = (n > 1 ? `${final.join(' + ')} = <b>${sum}</b>` : `<b>${sum}</b>`) + (steps && steps !== sum ? ` <small class="ds-mod">→ anda ${steps} (${EVENTS[App.pub.event.key].name.toLowerCase()})</small>` : '');
     Sound.step();
     this._diceHide = setTimeout(() => { show.classList.add('out'); this._diceHide = setTimeout(() => show.classList.add('hidden'), 400); }, 1600);
   },
 
+  revealHTML() {
+    const pub = App.pub, R = pub.reveal; if (!R) return '';
+    const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+    const nm = id => id === ME ? 'Você' : esc((pub.players.find(p => p.id === id) || {}).name || '?');
+    const rows = pub.players.map(p => { const st = R.stats[p.id] || { hand: [], asked: 0, showed: 0, passed: 0 };
+      return `<div class="rv-row" style="--c:${S[p.suspect].color}"><div class="rv-who">${portrait(S[p.suspect])}<div><b>${nm(p.id)}</b><small>${pl(st.asked, 'palpite', 'palpites')} · mostrou ${pl(st.showed, 'carta', 'cartas')} · passou ${pl(st.passed, 'vez', 'vezes')}</small></div></div>
+        <div class="rv-hand">${st.hand.map(c => this.chip(c, 'mini')).join('')}</div></div>`; }).join('');
+    const mostAsk = pub.players.slice().sort((a, b) => (R.stats[b.id] || {}).asked - (R.stats[a.id] || {}).asked)[0];
+    const mostShow = pub.players.slice().sort((a, b) => (R.stats[b.id] || {}).showed - (R.stats[a.id] || {}).showed)[0];
+    const c = R.closest;
+    const facts = [
+      `🔎 ${pl(R.total, 'palpite', 'palpites')} na partida`,
+      mostAsk && (R.stats[mostAsk.id] || {}).asked ? `🗣 Mais curioso: <b>${nm(mostAsk.id)}</b> (${pl(R.stats[mostAsk.id].asked, 'palpite', 'palpites')})` : '',
+      mostShow && (R.stats[mostShow.id] || {}).showed ? `✋ Mais generoso: <b>${nm(mostShow.id)}</b> (mostrou ${pl(R.stats[mostShow.id].showed, 'carta', 'cartas')})` : '',
+      c && c.hits >= 2 ? `🎯 Quase lá: palpite #${c.n} de <b>${nm(c.by)}</b> acertou ${c.hits} de 3` : '',
+    ].filter(Boolean);
+    return `<div class="reveal"><h3>As cartas de cada um</h3>${rows}<div class="facts">${facts.map(f => `<span>${f}</span>`).join('')}</div></div>${this.scoreboard('in-modal')}`;
+  },
   showReact(r) {
     Sound.pop();
     const P = App.pub.players.find(p => p.id === r.by);
@@ -1161,11 +1248,13 @@ const UI = {
   overModal() {
     const pub = App.pub, sol = pub.solution, wn = pub.players.find(p => p.id === pub.winner);
     if (pub.winner === ME) Sound.win(); else Sound.sting();
+    if (wn) Voice.say(`Caso encerrado! ${wn.id === ME ? 'Você desvendou' : wn.name + ' desvendou'} o crime. Foi ${S[sol.s].name}, com ${W[sol.w].with}, ${ROOM[sol.r].in}.`);
     Modal.open(`<div class="poster-top">CASO ENCERRADO</div>
       <h2>${wn ? (wn.id === ME ? 'Você desvendou o crime!' : `${esc(wn.name)} desvendou o crime!`) : 'Ninguém desvendou o crime'}</h2>
       <div class="envelope"><div class="env-flap"></div><div class="env-body">CONFIDENCIAL</div>
         <div class="env-cards">${cardHTML('s:' + sol.s, 'e1')}${cardHTML('w:' + sol.w, 'e2')}${cardHTML('r:' + sol.r, 'e3')}</div></div>
       <p class="verdict">Foi <b>${S[sol.s].name}</b>, com <b>${W[sol.w].with}</b>, <b>${ROOM[sol.r].in}</b>.</p>
+      ${UI.revealHTML()}
       <div class="actions center">${App.isHost() ? '<button class="btn gold" data-act="newgame">Nova partida</button>' : '<span class="hint">O anfitrião pode iniciar uma nova partida.</span>'}<button class="btn" data-close>Fechar</button></div>`, { kind: 'over', cls: 'center wide' });
   },
   picker(mode) {
@@ -1275,13 +1364,19 @@ $('#notes').addEventListener('input', e => { if (e.target.id === 'notes-free') s
 $('#btn-notes').onclick = () => Notes.toggle();
 $('#btn-help').onclick = () => UI.help();
 $('#btn-sound').onclick = () => { Sound.unlock(); Sound.setMuted(!Sound.muted); $('#btn-sound').textContent = Sound.muted ? '🔇' : '🔊'; };
-document.addEventListener('change', e => { if (e.target.id === 'set-refute') App.send({ type: 'settings', refuteSecs: +e.target.value }); });
+document.addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.setting; if (!k) return;
+  const v = +e.target.value;
+  App.send({ type: 'settings', ...(k === 'refute' ? { refuteSecs: v } : k === 'dice' ? { dice: v } : k === 'events' ? { events: !!v } : { autoEnd: !!v }) });
+});
 // relógio de quem precisa mostrar carta
 setInterval(() => {
   const els = $$('[data-countdown]'); if (!els.length) return;
   const left = UI.deadline ? Math.max(0, Math.ceil((UI.deadline - performance.now()) / 1000)) : null;
   els.forEach(el => { el.textContent = left == null ? '' : (left >= 60 ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : `${left}s`); el.classList.toggle('urgent', left != null && left <= 10); });
 }, 250);
+$('#btn-voice').onclick = () => { const on = Voice.toggle(); $('#btn-voice').classList.toggle('on', on); toast(on ? 'Narração ligada: os palpites serão lidos em voz alta.' : 'Narração desligada.'); };
+if (Voice.on) $('#btn-voice').classList.add('on');
 $('#btn-music').onclick = () => { Sound.unlock(); const on = !Sound.music; Sound.setMusic(on); $('#btn-music').classList.toggle('on', on); };
 $('#btn-sea').onclick = () => { const on = !Sound.sea; Sound.setSea(on); $('#btn-sea').classList.toggle('on', on); };
 $('#chat').onsubmit = e => { e.preventDefault(); const v = $('#chat-in').value.trim(); if (v) App.send({ type: 'chat', text: v }); $('#chat-in').value = ''; };
