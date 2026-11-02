@@ -1,24 +1,24 @@
 # Créditos das imagens (Wikimedia Commons)
 
-- `room-P.jpg`: [Navigation Bridge of the Olympic.jpg](https://commons.wikimedia.org/wiki/File:Navigation_Bridge_of_the_Olympic.jpg) · Francis Browne · Public domain
-- `room-B.jpg`: [2nd-Class Library on the RMS Olympic.jpg](https://commons.wikimedia.org/wiki/File:2nd-Class_Library_on_the_RMS_Olympic.jpg) · Bedford Lemere &amp; Co. · Public domain
-- `room-E.jpg`: [Avonmouth hospital ship ward 1895.jpg](https://commons.wikimedia.org/wiki/File:Avonmouth_hospital_ship_ward_1895.jpg) · Samuel Loxton (artist) · Public domain
-- `room-C.jpg`: [Table de Roulette, Casino de Monte Carlo (Carte Postale Ancienne).jpg](https://commons.wikimedia.org/wiki/File:Table_de_Roulette,_Casino_de_Monte_Carlo_(Carte_Postale_Ancienne).jpg) · Neurdein Frères · Public domain
-- `room-S.jpg`: [Reception room in the RMS Olympic LCCN2002721353.jpg](https://commons.wikimedia.org/wiki/File:Reception_room_in_the_RMS_Olympic_LCCN2002721353.jpg) · William H. Rau · Public domain
-- `room-R.jpg`: [RMS Olympic's first class dining room.jpg](https://commons.wikimedia.org/wiki/File:RMS_Olympic%27s_first_class_dining_room.jpg) · Underwood &amp; Underwood. · Public domain
-- `room-M.jpg`: [SS Governor Cobb engine room looking forward.jpg](https://commons.wikimedia.org/wiki/File:SS_Governor_Cobb_engine_room_looking_forward.jpg) · Unknown authorUnknown author · Public domain
-- `room-V.jpg`: [Wrau-olympic-deck.jpg](https://commons.wikimedia.org/wiki/File:Wrau-olympic-deck.jpg) · William H. Rau · Public domain
-- `room-K.jpg`: [2nd Class Cabin E-89 of the Olympic.jpg](https://commons.wikimedia.org/wiki/File:2nd_Class_Cabin_E-89_of_the_Olympic.jpg) · Bedford Lemere &amp; Co. · Public domain
-- `ship.jpg`: [RMS Olympic Sea Trials in 1911.jpg](https://commons.wikimedia.org/wiki/File:RMS_Olympic_Sea_Trials_in_1911.jpg) · Robert J. Welch (1859-1936), Harland &amp; Wolff official photographer · Public domain
+- `room-P.jpg`: [Queen Mary bridge.jpg](https://commons.wikimedia.org/wiki/File:Queen_Mary_bridge.jpg) · No machine-readable author provided. Sfoskett~commonswiki assumed (based on copy · CC BY-SA 3.0
+- `room-B.jpg`: [Library - Queen Mary 2.jpg](https://commons.wikimedia.org/wiki/File:Library_-_Queen_Mary_2.jpg) · CaptG32 · CC BY 4.0
+- `room-E.jpg`: [World War I; a ward in a hospital ship. Oil painting by Godf Wellcome V0018237.jpg](https://commons.wikimedia.org/wiki/File:World_War_I;_a_ward_in_a_hospital_ship._Oil_painting_by_Godf_Wellcome_V0018237.jpg) · Jan Gordon · CC BY 4.0
+- `room-C.jpg`: [Queen Mary Observation Bar.jpg](https://commons.wikimedia.org/wiki/File:Queen_Mary_Observation_Bar.jpg) · derivative work: Altair78 (talk) Queen_Mary_salon.jpg: gailf548 · CC BY 2.0
+- `room-S.jpg`: [White Swan Hotel Olympic Suite.jpg](https://commons.wikimedia.org/wiki/File:White_Swan_Hotel_Olympic_Suite.jpg) · Own work · CC BY-SA 4.0
+- `room-R.jpg`: [RMS Queen Mary Grand Salon.jpg](https://commons.wikimedia.org/wiki/File:RMS_Queen_Mary_Grand_Salon.jpg) · Florian Boyd · CC BY-SA 2.0
+- `room-M.jpg`: [SS Jeremiah O'Brien engine room 2.JPG](https://commons.wikimedia.org/wiki/File:SS_Jeremiah_O%27Brien_engine_room_2.JPG) · BrokenSphere · CC BY 3.0
+- `room-V.jpg`: [Queen-Mary-promenade-deck (20988733394).jpg](https://commons.wikimedia.org/wiki/File:Queen-Mary-promenade-deck_(20988733394).jpg) · JD Lasica from Pleasanton, CA, US · CC BY 2.0
+- `room-K.jpg`: [Queen-Mary-bay-view-stateroom (21423705868).jpg](https://commons.wikimedia.org/wiki/File:Queen-Mary-bay-view-stateroom_(21423705868).jpg) · JD Lasica from Pleasanton, CA, US · CC BY 2.0
+- `ship.jpg`: [RMS OLYMPIC koloriert.png](https://commons.wikimedia.org/wiki/File:RMS_OLYMPIC_koloriert.png) · Unknown authorUnknown author · Public domain
+- `w-arp.jpg`: [Whaling guns and harpoons on display at the Cheyne Beach Whaling Station 01.jpg](https://commons.wikimedia.org/wiki/File:Whaling_guns_and_harpoons_on_display_at_the_Cheyne_Beach_Whaling_Station_01.jpg) · Aliceinthealice · CC0
+- `w-sex.jpg`: [Sextant USSR 1951.jpg](https://commons.wikimedia.org/wiki/File:Sextant_USSR_1951.jpg) · Ctac · CC BY-SA 4.0
+- `s-cap.jpg`: [Michael Ancher - En fisker med kasket og pibe.png](https://commons.wikimedia.org/wiki/File:Michael_Ancher_-_En_fisker_med_kasket_og_pibe.png) · Michael Ancher · Public domain
+- `s-con.jpg`: [The Parisian Woman (1910), by André Brouillet.jpg](https://commons.wikimedia.org/wiki/File:The_Parisian_Woman_(1910),_by_Andr%C3%A9_Brouillet.jpg) · André Brouillet · Public domain
+- `s-doc.jpg`: [Ladislav Mednyánszky - Portrait of a Man with a Tie - O 4935 - Slovak National Gallery.jpg](https://commons.wikimedia.org/wiki/File:Ladislav_Medny%C3%A1nszky_-_Portrait_of_a_Man_with_a_Tie_-_O_4935_-_Slovak_National_Gallery.jpg) · László Mednyánszky · Public domain
+- `s-can.jpg`: [Boldini - Portrait of a Lady, circa 1897.jpg](https://commons.wikimedia.org/wiki/File:Boldini_-_Portrait_of_a_Lady,_circa_1897.jpg) · Giovanni Boldini · Public domain
+- `s-bar.jpg`: [Demjén Portrait of a Man.jpg](https://commons.wikimedia.org/wiki/File:Demj%C3%A9n_Portrait_of_a_Man.jpg) · László Demjén · Public domain
+- `s-mar.jpg`: [(Bemberg Foundation) - 'Portrait of a Young Woman in a White Hat' by Mary Cassatt (1879) Oil on canvas.jpg](https://commons.wikimedia.org/wiki/File:(Bemberg_Foundation)_-_%27Portrait_of_a_Young_Woman_in_a_White_Hat%27_by_Mary_Cassatt_(1879)_Oil_on_canvas.jpg) · Didier Descouens · Public domain
 - `w-cha.jpg`: [Champagne flute and bottle.jpg](https://commons.wikimedia.org/wiki/File:Champagne_flute_and_bottle.jpg) · Taken on September 22, 2005 · CC BY 2.0
 - `w-cor.jpg`: [Rope Coil (20749461040).jpg](https://commons.wikimedia.org/wiki/File:Rope_Coil_(20749461040).jpg) · GlacierNPS · Public domain
 - `w-pis.jpg`: [1930s Flare Gun.jpg](https://commons.wikimedia.org/wiki/File:1930s_Flare_Gun.jpg) · Mbrickn · CC BY 4.0
 - `w-lau.jpg`: [Laudanum.jpeg](https://commons.wikimedia.org/wiki/File:Laudanum.jpeg) · Djm55 · Public domain
-- `w-arp.jpg`: [Whaling harpoon 2.jpg](https://commons.wikimedia.org/wiki/File:Whaling_harpoon_2.jpg) · desconhecido · Public domain
-- `w-sex.jpg`: [Sextant-2.jpg](https://commons.wikimedia.org/wiki/File:Sextant-2.jpg) · desconhecido · Public domain
-- `s-cap.jpg`: [Portret van een onbekende man in maritiem uniform, RP-F-F14573.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man_in_maritiem_uniform,_RP-F-F14573.jpg) · Rijksmuseum · Rijksmuseum · CC0
-- `s-con.jpg`: [Portret van een onbekende vrouw met een hoed, RP-F-F18735.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw_met_een_hoed,_RP-F-F18735.jpg) · Rijksmuseum · Rijksmuseum · CC0
-- `s-doc.jpg`: [Portret van een onbekende man, RP-F-F18718.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man,_RP-F-F18718.jpg) · Rijksmuseum · Rijksmuseum · CC0
-- `s-can.jpg`: [Portret van een onbekende vrouw, RP-F-F19026.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw,_RP-F-F19026.jpg) · Rijksmuseum · Rijksmuseum · CC0
-- `s-bar.jpg`: [Portret van een onbekende man, RP-F-F27129.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man,_RP-F-F27129.jpg) · Rijksmuseum · Rijksmuseum · CC0
-- `s-mar.jpg`: [Portret van een onbekende vrouw, RP-F-F20866.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw,_RP-F-F20866.jpg) · Rijksmuseum · Rijksmuseum · CC0

@@ -18,8 +18,8 @@ const SUSPECTS = [
     bio: 'Estrela do salão de baile. A vítima guardava cartas que podiam arruiná-la.' },
   { id: 'bar', name: 'Barão Otto Klein', short: 'O Barão', color: '#c9a227', hat: 'tophat', skin: '#efcfae', hair: '#c8b27a',
     bio: 'Rival nos negócios. Embarcou de última hora, sem bagagem.' },
-  { id: 'mar', name: 'Joana Ribeiro', short: 'A Marinheira', color: '#d0661c', hat: 'beret', skin: '#b97a52', hair: '#4a2a14',
-    bio: 'Trabalha na casa de máquinas. Viu algo que não devia.' },
+  { id: 'mar', name: 'Joana Ribeiro', short: 'A Camareira', color: '#d0661c', hat: 'beret', skin: '#b97a52', hair: '#4a2a14',
+    bio: 'Camareira da primeira classe. Arrumava a cabine da vítima e viu algo que não devia.' },
 ];
 
 const WEAPONS = [
