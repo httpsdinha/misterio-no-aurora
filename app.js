@@ -45,7 +45,8 @@ const ROOMS = [
 ];
 const PASSAGES = { P: 'K', K: 'P', E: 'M', M: 'E' }; // dutos de serviço
 // escotilhas de corredor: atravessam o navio em 1 passo
-const TUNNELS = [{ id: 'I', a: [0, 8], b: [23, 15] }, { id: 'II', a: [6, 0], b: [17, 23] }];
+const TUNNELS = [{ id: 'I', a: [0, 8], b: [23, 15], color: '#3fc8d4', ctrl: [3, 13] }, { id: 'II', a: [6, 0], b: [17, 23], color: '#d27ae6', ctrl: [13, 21] }];
+const tunnelOf = {}; TUNNELS.forEach(t => { tunnelOf[t.a.join(',')] = t; tunnelOf[t.b.join(',')] = t; });
 const tunnelMap = {};
 TUNNELS.forEach(t => { tunnelMap[t.a.join(',')] = t.b.join(','); tunnelMap[t.b.join(',')] = t.a.join(','); });
 const STARTS = { cap: [0, 7], con: [0, 16], doc: [7, 23], can: [23, 16], bar: [23, 7], mar: [16, 0] };
@@ -633,8 +634,13 @@ const UI = {
     });
     TUNNELS.forEach(t => [t.a, t.b].forEach(([r, c], i) => {
       const [or, oc] = i ? t.a : t.b;
-      html += `<div class="tunnel" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)}" title="Escotilha ${t.id}: leva até a outra escotilha ${t.id} (linha ${or + 1}, coluna ${oc + 1}) gastando 1 passo"><span>${t.id}</span></div>`;
+      html += `<div class="tunnel" data-tunnel="${t.id}" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)};--tc:${t.color}" title="Escotilha ${t.id}: entre aqui e saia na outra escotilha ${t.id}, do outro lado do navio, gastando só 1 passo"><span>${t.id}</span></div>`;
     }));
+    // linhas que ligam cada par de escotilhas
+    html += `<svg class="tunnel-links" viewBox="0 0 ${N} ${N}" preserveAspectRatio="none">${TUNNELS.map(t => {
+      const [ay, ax] = t.a, [by, bx] = t.b, [cy, cx] = t.ctrl;
+      return `<path data-link="${t.id}" d="M${ax + .5} ${ay + .5} Q${cx} ${cy} ${bx + .5} ${by + .5}" stroke="${t.color}"/>`;
+    }).join('')}</svg>`;
     Object.entries(STARTS).forEach(([id, [r, c]]) => {
       html += `<div class="start" style="left:${pct(c)};top:${pct(r)};width:${pct(1)};height:${pct(1)};--c:${S[id].color}" title="Partida: ${S[id].name}"></div>`;
     });
@@ -658,10 +664,13 @@ const UI = {
     const el = $('#path'); this.previewKey = key;
     $$('.hl-cell.sel, .room.sel').forEach(x => x.classList.remove('sel'));
     if (!el) return;
-    if (!key || !this.movePrev || this.movePrev[key] === undefined) { el.innerHTML = ''; return; }
+    if (!key || !this.movePrev || this.movePrev[key] === undefined) { el.innerHTML = ''; $$('.tunnel-links path.jump').forEach(p => p.classList.remove('jump')); return; }
     const dots = []; let k = this.movePrev[key];
     while (k !== undefined && this.movePrev[k] !== undefined) { if (!k.startsWith('room:')) dots.push(k); k = this.movePrev[k]; }
     el.innerHTML = dots.map(d => { const [r, c] = d.split(',').map(Number); return `<i class="path-dot" style="left:${(c + 0.5) / N * 100}%;top:${(r + 0.5) / N * 100}%"></i>`; }).join('');
+    const full = [key]; let q = key; while (this.movePrev[q] !== undefined) { q = this.movePrev[q]; full.push(q); }
+    const jumps = new Set(); for (let i = 0; i + 1 < full.length; i++) if (tunnelMap[full[i]] === full[i + 1]) jumps.add(tunnelOf[full[i]].id);
+    $$('.tunnel-links path').forEach(p => p.classList.toggle('jump', jumps.has(p.dataset.link)));
     const target = key.startsWith('room:') ? $(`.room[data-room="${key.slice(5)}"]`) : $(`.hl-cell[data-key="${key}"]`);
     if (target) target.classList.add('sel');
   },
@@ -704,15 +713,22 @@ const UI = {
     if (choosing) {
       const { out, prev } = reachable(pub.pos, mySid, ts.dice[0] + ts.dice[1]);
       this.movePrev = prev;
+      var viaTunnels = new Set();
       ts.reach.forEach(k => {
         if (k.startsWith('room:')) $(`.room[data-room="${k.slice(5)}"]`).classList.add('reach');
-        else { const [r, c] = k.split(',').map(Number); hl += `<div class="hl-cell" data-key="${k}" style="left:${c / N * 100}%;top:${r / N * 100}%;width:${100 / N}%;height:${100 / N}%"><b>${out[k] || ''}</b></div>`; }
+        else {
+          const [r, c] = k.split(',').map(Number), via = tunnelMap[k] && prev[k] === tunnelMap[k] ? tunnelOf[k] : null;
+          if (via) viaTunnels.add(via.id);
+          hl += `<div class="hl-cell${via ? ' via' : ''}" data-key="${k}" style="left:${c / N * 100}%;top:${r / N * 100}%;width:${100 / N}%;height:${100 / N}%${via ? ';--tc:' + via.color : ''}"${via ? ` title="Saída da escotilha ${via.id}"` : ''}><b>${out[k] || ''}</b></div>`;
+        }
       });
       hl += '<div id="path"></div>';
     }
     if (mine && !pub.pending && !ts.rolled && !ts.moved && myPos && myPos.room && PASSAGES[myPos.room]) $(`.room[data-room="${myPos.room}"] .passage`).classList.add('active');
     $('#hl').innerHTML = hl;
     this.previewKey = null;
+    $$('.tunnel-links path').forEach(p => p.classList.toggle('on', choosing && viaTunnels.has(p.dataset.link)));
+    $$('.tunnel').forEach(el => el.classList.toggle('on', choosing && viaTunnels.has(el.dataset.tunnel)));
 
     // dica de movimento
     let hint = '';
@@ -721,16 +737,22 @@ const UI = {
       if (choosing) {
         const rooms = ts.reach.filter(k => k.startsWith('room:')).length, cells = ts.reach.length - rooms;
         hint = ts.reach.length
-          ? `🎲 Você tirou <b>${ts.dice[0] + ts.dice[1]}</b>. Escolha para onde ir:` +
-            (cells ? ` <span class="hint-cell"></span> <b>casa dourada</b> (o número = passos)` : '') +
-            (rooms ? `${cells ? ' ou' : ''} <span class="hint-room">ENTRAR</span> numa <b>sala</b> (entrar encerra o movimento)` : '') +
-            (TOUCH ? '. <i>Toque uma vez para ver o caminho e de novo para confirmar.</i>' : '.')
+          ? `🎲 <b>${ts.dice[0] + ts.dice[1]}</b>: clique numa <span class="hint-cell"></span> <b>casa dourada</b> (número = passos)` +
+            (rooms ? ` ou numa sala <span class="hint-room">▶ ENTRAR</span>` : '') + '.' +
+            (viaTunnels.size ? ` <span class="hint-t">Escotilha ${[...viaTunnels].join(' e ')} no alcance: leva à placa da mesma cor do outro lado (1 passo).</span>` : '') +
+            (TOUCH ? ' <i>1º toque mostra o caminho, 2º confirma.</i>' : '')
           : '';
       } else if (!ts.rolled && !ts.moved) {
         hint = `É a sua vez: <b>role os dados</b> no painel${myPos.room && PASSAGES[myPos.room] ? ' ou use o <b>duto ⇲</b> desta sala' : ''}${ts.summoned && myPos.room ? ', ou dê um palpite aqui mesmo' : ''}.`;
       } else if (canSug0) hint = `Você está ${ROOM[myPos.room].in}. Faça seu <b>palpite</b> no painel.`;
     }
     const mh = $('#move-hint'); mh.innerHTML = hint; mh.classList.toggle('hidden', !hint);
+    // a dica fica no lado do tabuleiro com menos opções iluminadas
+    if (choosing) {
+      const rowOf = k => k.startsWith('room:') ? (ROOM[k.slice(5)].rect[0] + ROOM[k.slice(5)].rect[2]) / 2 : +k.split(',')[0];
+      const bottom = ts.reach.filter(k => rowOf(k) >= 19).length, top = ts.reach.filter(k => rowOf(k) <= 4).length;
+      mh.classList.toggle('top', bottom > top);
+    } else mh.classList.remove('top');
 
     // peões
     this.target = this.computeTargets(pub.pos);
@@ -855,6 +877,7 @@ const UI = {
       <p>Augusto Faria foi encontrado morto durante o baile. Um envelope lacrado guarda a verdade: <b>quem</b>, <b>com o quê</b> e <b>onde</b>.</p>
       ${s ? `<div class="intro-me">${portrait(s)}<div><small>Você é</small><b>${esc(s.name)}</b><p>${esc(s.bio)}</p></div></div>` : ''}
       <p>As cartas na sua mão <b>não</b> estão no envelope. Abra o caderno (tecla N) e faça suas anotações.</p>
+      <p class="hint">Atalhos do navio: <b style="color:#3fc8d4">escotilhas I</b> e <b style="color:#d27ae6">II</b> nos corredores ligam um lado ao outro por 1 passo, e os <b>dutos ⇲</b> das salas de canto levam à sala oposta.</p>
       <div class="row-cards">${(App.priv ? App.priv.hand : []).map(c => cardHTML(c, 'sm')).join('')}</div>
       <button class="btn gold" data-close>Começar a investigar</button>`, { kind: 'intro', cls: 'center' });
   },
@@ -904,8 +927,8 @@ const UI = {
   help() {
     Modal.open(`<h2>Como jogar</h2><ol class="rules">
       <li>No início, um <b>suspeito</b>, uma <b>arma</b> e um <b>local</b> são escondidos no envelope. O resto das cartas é distribuído.</li>
-      <li>Na sua vez, <b>role os dados</b> e ande até esse número de casas pelos corredores (pode andar menos). Entrar numa sala encerra o movimento. As salas dos cantos têm <b>dutos de serviço</b> para a sala oposta.</li>
-      <li>Nos corredores há duas <b>escotilhas</b> (placas de metal I e II). Entrar numa escotilha leva você até a outra com o mesmo número, do outro lado do navio, gastando só 1 passo.</li>
+      <li>Na sua vez, <b>role os dados</b> e ande até esse número de casas pelos corredores (pode andar menos). Entrar numa sala encerra o movimento. As salas dos cantos têm <b>dutos de serviço</b> ⇲ para a sala oposta.</li>
+      <li>Nos corredores há duas <b>escotilhas</b>: as placas <b style="color:#3fc8d4">I</b> (turquesa) e <b style="color:#d27ae6">II</b> (lilás). Pisou numa, pode sair na outra placa da mesma cor, do outro lado do navio, gastando só 1 passo. Passe o mouse ou toque numa placa para ver a ligação.</li>
       <li>Dentro de uma sala, dê um <b>palpite</b>: suspeito + arma + a sala onde você está. O suspeito e a arma são levados até lá.</li>
       <li>Seguindo a ordem da mesa, o primeiro jogador que tiver uma das três cartas mostra <b>uma</b>, em segredo, só para você.</li>
       <li>Quem é levado para uma sala por um palpite pode, na sua vez, palpitar ali mesmo sem rolar os dados.</li>
@@ -959,6 +982,15 @@ $('#board').addEventListener('mouseover', e => {
   UI.showPath(h ? h.dataset.key : room ? 'room:' + room.dataset.room : null);
 });
 $('#board').addEventListener('mouseleave', () => { if (!TOUCH) UI.showPath(null); });
+function peekTunnel(id) {
+  $$('.tunnel-links path').forEach(p => p.classList.toggle('peek', p.dataset.link === id));
+  $$('.tunnel').forEach(el => el.classList.toggle('peek', el.dataset.tunnel === id));
+}
+$('#board').addEventListener('mouseover', e => { if (TOUCH) return; const t = e.target.closest('[data-tunnel]'); peekTunnel(t ? t.dataset.tunnel : null); });
+$('#board').addEventListener('click', e => {
+  const t = e.target.closest('[data-tunnel]');
+  if (t && !e.target.closest('[data-key]')) { peekTunnel(t.dataset.tunnel); toast(`Escotilha ${t.dataset.tunnel}: pisou numa, sai na outra placa da mesma cor (1 passo).`, 3500); clearTimeout(peekTunnel._t); peekTunnel._t = setTimeout(() => peekTunnel(null), 3500); }
+});
 
 $('#notes').addEventListener('input', e => { if (e.target.id === 'notes-free') store.set(Notes.key() + '-free', e.target.value); });
 $('#btn-notes').onclick = () => Notes.toggle();
