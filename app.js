@@ -532,12 +532,25 @@ const Notes = {
       const d = cardData(id);
       return `<tr class="${solved ? 'solved' : ''}"><td class="nm">${solved ? '★ ' : ''}${esc(d.name)}</td>${players.map(p => { const v = this.get(id, p.id); return `<td class="mk m-${v === '?' ? 'q' : v} ${p.id === ME ? 'me' : ''}" data-nc="${id}" data-np="${p.id}">${sym[v] || ''}</td>`; }).join('')}</tr>`;
     }).join('');
+    const oldPaper = el.querySelector('.notes-paper'), scroll = oldPaper ? oldPaper.scrollTop : 0;
+    this._sig = this.sig();
     el.innerHTML = `<div class="notes-paper">
       <div class="notes-head"><h2>Caderno do detetive</h2><button class="icon-btn" data-close-notes>✕</button></div>
       <p class="notes-hint">Clique para marcar: <b>✗</b> não tem · <b>✓</b> tem · <b>?</b> talvez. Linha toda em ✗ = está no envelope ★</p>
       <table>${head}${section('Suspeitos', SUSPECTS.map(s => 's:' + s.id))}${section('Armas', WEAPONS.map(w => 'w:' + w.id))}${section('Locais', ROOMS.map(r => 'r:' + r.id))}</table>
       <textarea id="notes-free" placeholder="Rascunhos, suspeitas, quem perguntou o quê…">${esc(store.get(this.key() + '-free', ''))}</textarea>
     </div>`;
+    el.querySelector('.notes-paper').scrollTop = scroll;
+  },
+  sig() { return App.pub ? App.pub.gameId + '|' + App.pub.players.map(p => p.id + p.suspect).join(',') : ''; },
+  // marca só a célula clicada, sem redesenhar o caderno (não perde a posição)
+  updateCell(td) {
+    const id = td.dataset.nc, pid = td.dataset.np, v = this.get(id, pid);
+    td.textContent = { x: '✗', v: '✓', '?': '?' }[v] || '';
+    td.className = `mk m-${v === '?' ? 'q' : v}${pid === ME ? ' me' : ''}`;
+    const tr = td.parentElement, solved = App.pub.players.every(p => this.get(id, p.id) === 'x');
+    tr.classList.toggle('solved', solved);
+    tr.querySelector('.nm').textContent = (solved ? '★ ' : '') + cardData(id).name;
   },
   toggle(force) { const el = $('#notes'); const open = force ?? !el.classList.contains('open'); el.classList.toggle('open', open); if (open) this.render(); },
 };
@@ -589,7 +602,7 @@ const UI = {
     }
     this.renderGame();
     this.events(firstOfGame);
-    if ($('#notes').classList.contains('open')) Notes.render();
+    if ($('#notes').classList.contains('open') && Notes._sig !== Notes.sig()) Notes.render();
   },
 
   /* ----- sala de espera ----- */
@@ -1038,7 +1051,7 @@ document.addEventListener('click', e => {
   if (t.closest('[data-copy]')) { const v = $('#share-link').value; navigator.clipboard?.writeText(v).then(() => toast('Convite copiado! Mande para a galera.'), () => { $('#share-link').select(); toast('Copie o link selecionado.'); }); return; }
   if (t.closest('[data-close-notes]')) return Notes.toggle(false);
   const nc = t.closest('[data-nc]');
-  if (nc) { Notes.cycle(nc.dataset.nc, nc.dataset.np); return Notes.render(); }
+  if (nc) { Notes.cycle(nc.dataset.nc, nc.dataset.np); return Notes.updateCell(nc); }
 });
 
 const TOUCH = matchMedia('(hover: none)').matches;
