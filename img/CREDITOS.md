@@ -16,3 +16,9 @@
 - `w-lau.jpg`: [Laudanum.jpeg](https://commons.wikimedia.org/wiki/File:Laudanum.jpeg) · Djm55 · Public domain
 - `w-arp.jpg`: [Whaling harpoon 2.jpg](https://commons.wikimedia.org/wiki/File:Whaling_harpoon_2.jpg) · desconhecido · Public domain
 - `w-sex.jpg`: [Sextant-2.jpg](https://commons.wikimedia.org/wiki/File:Sextant-2.jpg) · desconhecido · Public domain
+- `s-cap.jpg`: [Portret van een onbekende man in maritiem uniform, RP-F-F14573.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man_in_maritiem_uniform,_RP-F-F14573.jpg) · Rijksmuseum · Rijksmuseum · CC0
+- `s-con.jpg`: [Portret van een onbekende vrouw met een hoed, RP-F-F18735.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw_met_een_hoed,_RP-F-F18735.jpg) · Rijksmuseum · Rijksmuseum · CC0
+- `s-doc.jpg`: [Portret van een onbekende man, RP-F-F18718.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man,_RP-F-F18718.jpg) · Rijksmuseum · Rijksmuseum · CC0
+- `s-can.jpg`: [Portret van een onbekende vrouw, RP-F-F19026.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw,_RP-F-F19026.jpg) · Rijksmuseum · Rijksmuseum · CC0
+- `s-bar.jpg`: [Portret van een onbekende man, RP-F-F27129.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_man,_RP-F-F27129.jpg) · Rijksmuseum · Rijksmuseum · CC0
+- `s-mar.jpg`: [Portret van een onbekende vrouw, RP-F-F20866.jpg](https://commons.wikimedia.org/wiki/File:Portret_van_een_onbekende_vrouw,_RP-F-F20866.jpg) · Rijksmuseum · Rijksmuseum · CC0

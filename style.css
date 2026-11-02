@@ -24,6 +24,8 @@ button { font-family: inherit; }
 h1, h2, h3 { font-family: var(--deco); font-weight: 400; letter-spacing: .04em; }
 h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .2em; color: var(--gold); margin: 0 0 8px; }
 
+.portrait { display: block; aspect-ratio: 5 / 6; object-fit: cover; filter: sepia(.35) contrast(1.05); border-bottom: 4px solid var(--c); background: #17110b; }
+
 /* ---------- botões ---------- */
 .btn {
   background: linear-gradient(#2a2117, #1a140d); color: var(--cream); border: 1px solid var(--gold);

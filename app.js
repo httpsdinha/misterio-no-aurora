@@ -115,27 +115,7 @@ function toast(msg, ms = 2600) {
 
 /* ---------------- ARTE ---------------- */
 function portrait(s) {
-  const hats = {
-    cap: `<path d="M27 36 Q50 12 73 36 L75 42 L25 42Z" fill="#141c2b"/><rect x="21" y="40" width="58" height="7" rx="3" fill="#0b0f18"/><rect x="27" y="35" width="46" height="3" fill="#d4af37"/><circle cx="50" cy="28" r="4.5" fill="#d4af37"/>`,
-    tiara: `<path d="M33 33 L39 21 L45 30 L50 16 L55 30 L61 21 L67 33Z" fill="#e2c15a" stroke="#8a6d1d" stroke-width="1"/><circle cx="50" cy="21" r="3" fill="#c0182d"/><circle cx="39" cy="24" r="1.6" fill="#9fd6ff"/><circle cx="61" cy="24" r="1.6" fill="#9fd6ff"/>`,
-    glasses: `<g stroke="#1b1b1b" stroke-width="2" fill="rgba(200,230,255,.25)"><circle cx="42" cy="54" r="6.5"/><circle cx="58" cy="54" r="6.5"/></g><line x1="48.5" y1="54" x2="51.5" y2="54" stroke="#1b1b1b" stroke-width="2"/><path d="M40 70 Q50 75 60 70" stroke="#3a2a20" stroke-width="3" fill="none"/>`,
-    feather: `<path d="M29 38 Q50 22 71 38 L71 41 L29 41Z" fill="#141414"/><path d="M63 33 Q82 10 74 1 Q70 18 58 33Z" fill="#efe3ff"/><circle cx="62" cy="36" r="3" fill="#d4af37"/>`,
-    tophat: `<rect x="33" y="3" width="34" height="31" rx="2" fill="#0d0d0d"/><rect x="24" y="32" width="52" height="6" rx="3" fill="#0d0d0d"/><rect x="33" y="26" width="34" height="5" fill="#7a1420"/><path d="M38 64 Q44 60 50 64 Q56 60 62 64" stroke="${s.hair}" stroke-width="3" fill="none"/>`,
-    beret: `<ellipse cx="47" cy="34" rx="25" ry="9" fill="#1f3550"/><circle cx="47" cy="25" r="3" fill="#1f3550"/>`,
-  };
-  return `<svg class="portrait" viewBox="0 0 100 120" aria-hidden="true">
-    <rect width="100" height="120" fill="#17110b"/>
-    <circle cx="50" cy="55" r="48" fill="${s.color}" opacity=".35"/>
-    <path d="M12 120 Q14 84 50 80 Q86 84 88 120Z" fill="${s.color}"/>
-    <path d="M12 120 Q14 84 50 80 Q86 84 88 120Z" fill="url(#shade)" opacity=".0"/>
-    <path d="M41 79 L50 95 L59 79Z" fill="#f3e9d2"/>
-    <rect x="44" y="70" width="12" height="12" fill="${s.skin}"/>
-    <ellipse cx="50" cy="40" rx="20" ry="16" fill="${s.hair}"/>
-    <ellipse cx="50" cy="54" rx="17" ry="21" fill="${s.skin}"/>
-    <circle cx="43" cy="53" r="1.8" fill="#1b130d"/><circle cx="57" cy="53" r="1.8" fill="#1b130d"/>
-    <path d="M45 66 Q50 68 55 66" stroke="#7a3b2b" stroke-width="1.6" fill="none"/>
-    ${hats[s.hat] || ''}
-  </svg>`;
+  return `<img class="portrait" src="img/s-${s.id}.jpg" alt="${esc(s.name)}" style="--c:${s.color}" loading="lazy">`;
 }
 
 function cardData(id) {
@@ -575,7 +555,20 @@ function banner(html, ms = 4200) {
 /* ---------------- UI ---------------- */
 const UI = {
   boardBuilt: false, seen: null, animating: new Set(), target: {},
-  show(id) { ['home', 'lobby', 'game'].forEach(s => $('#' + s).classList.toggle('hidden', s !== id)); },
+  show(id) {
+    ['home', 'lobby', 'game'].forEach(s => $('#' + s).classList.toggle('hidden', s !== id));
+    // endereço e título de cada etapa
+    const pub = App.pub, code = pub && pub.code;
+    let hash = '', title = 'Mistério no Aurora';
+    if (id === 'lobby' && code) { hash = `#/sala/${code}/embarque`; title = `Embarque · Sala ${code} · Mistério no Aurora`; }
+    else if (id === 'game' && code) {
+      const over = pub.phase === 'over';
+      hash = `#/sala/${code}/${over ? 'caso-encerrado' : 'investigacao'}`;
+      title = `${over ? 'Caso encerrado' : 'Investigação'} · Sala ${code} · Mistério no Aurora`;
+    }
+    if (location.hash !== hash) history.replaceState(null, '', location.pathname + hash);
+    document.title = title;
+  },
 
   update(prev) {
     const pub = App.pub;
@@ -598,7 +591,7 @@ const UI = {
   /* ----- sala de espera ----- */
   renderLobby() {
     const pub = App.pub, me = App.me();
-    const link = location.origin + location.pathname + '?sala=' + pub.code;
+    const link = location.origin + location.pathname + '#/sala/' + pub.code;
     const takenBy = {}; pub.players.forEach(p => { if (p.suspect) takenBy[p.suspect] = p; });
     $('#lobby-box').innerHTML = `
       <div class="poster-top">PORTÃO DE EMBARQUE</div>
@@ -928,7 +921,9 @@ window.addEventListener('beforeunload', e => { if (App.role === 'host' && App.pu
   const params = new URLSearchParams(location.search);
   const nameIn = $('#in-name'), codeIn = $('#in-code');
   nameIn.value = store.get('aurora-name', '');
-  const sala = (params.get('sala') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  const hm = location.hash.match(/^#\/sala\/([A-Za-z]{4})/);
+  const sala = ((hm && hm[1]) || params.get('sala') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  if (sala) document.title = `Convite · Sala ${sala} · Mistério no Aurora`;
   if (sala) { codeIn.value = sala; $('#btn-join').classList.add('gold'); $('#btn-create').classList.remove('gold'); }
   codeIn.addEventListener('input', () => { codeIn.value = codeIn.value.toUpperCase().replace(/[^A-Z]/g, ''); });
   const getName = () => { const n = nameIn.value.trim(); if (!n) { $('#home-err').textContent = 'Diga seu nome, detetive.'; nameIn.focus(); return null; } store.set('aurora-name', n); return n; };
